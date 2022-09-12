@@ -17,14 +17,19 @@ class Triangle:
                    abs(nodes[1, idx_feature] - nodes[2, idx_feature]),
                    abs(nodes[2, idx_feature] - nodes[0, idx_feature])).item() * constant
 
+    # gets triangle as input. If the triangle isn't linked as neighbor with self, they get linked.
     def add_neighbor(self, triangle):
         if not (triangle in self.neighbors):
             self.neighbors.append(triangle)
             triangle.add_neighbor(self)
 
+    # unlinks self with input triangle. (if they are neighbors)
     def remove_neighbor(self, triangle):
-        self.neighbors.remove(triangle)
+        if (triangle in self.neighbors):
+            self.neighbors.remove(triangle)
+            triangle.remove_neighbor(self)
 
-    def delete_triangle(self):
+    # unlinks self with all neighbor triangles.
+    def remove_all_neighbors(self):
         for t in self.neighbors:
             t.remove_neighbor(self)
