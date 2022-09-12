@@ -51,8 +51,50 @@ def test_adaptive_refinement(graph, max_error, idx_feature):
 
     # until all triangles have a error less max_error
     while t_bad:
+        created_triangles = set()
+        created_nodes = set()
+        changed_triangles = set()
+
         for t in t_bad:
-            refine_triangle_bad(t)
+            new_triangles, new_nodes, changed_neighbors = refine_triangle_bad(t)
+            created_triangles = (set(new_triangles) | created_triangles)
+            nodes_tuple = [tuple(node) for node in new_nodes]
+            created_nodes = (set(nodes_tuple) | created_nodes)
+            changed_triangles = (set(changed_neighbors) | changed_triangles)
+
+        good_changed_triangles = list(changed_triangles & set(t_good))
+        for t in good_changed_triangles:
+            created_triangles = refine_triangle_good(t, created_nodes)
+
+
+def refine_triangle_good(triangle, created_nodes):
+    changed_nodes = get_changed_nodes(triangle, created_nodes)[2:,:]
+    if len(changed_nodes) == 3:
+        new_triangles, new_nodes = refine_passive_3_node(triangle=triangle, new_nodes=changed_nodes)
+    elif len(changed_nodes) == 2:
+        refine_passive_2_node()
+    elif len(changed_nodes) == 1:
+        refine_passive_1_node()
+    else:
+        print("Error, len(changed_nodes) muss zwischen 1 und 3 sein.")
+
+def get_changed_nodes(triangle, created_nodes):
+    possible_nodes = get_3_new_nodes(triangle.graph.x.numpy())
+    return possible_nodes & created_nodes
+
+def refine_passive_1_node(triangle, new_nodes):
+    pass
+
+def refine_passive_2_node(triangle, new_nodes):
+    pass
+
+def refine_passive_3_node(triangle, new_nodes):
+    all_nodes = get_3_new_nodes(triangle.graph.x.numpy())
+    old_neighbors = triangle.neighbors
+    old_nv = [triangle.i1_nv, triangle.i2_nv, triangle.i3_nv]
+    triangle.delete_triangle()
+    triangles = make_4_triangles(all_nodes, old_nv)
+    return triangles, all_nodes[-3:, :].tolist(), old_neighbors
 
 def actualize_neighbors_t(triangles):
     triangles_copy = triangles.copy()
