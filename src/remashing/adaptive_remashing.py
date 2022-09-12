@@ -3,6 +3,7 @@ import torch
 from torch_geometric.data import Data
 from torch_geometric import utils as geom_utils
 from src.remashing.triangle import Triangle
+from src.remashing.mash import Mash
 import numpy as np
 
 
@@ -25,7 +26,6 @@ def make_test_graph():
     return Data(x=x, edge_index=edge_index)
 
 def test_adaptive_refinement(graph, max_error, idx_feature):
-    x = 0
     # get nodes from graph in nodes
     #dict = graph.to_dict()
     #nodes = dict['x']
@@ -127,9 +127,9 @@ def refine_triangle_bad(triangle):
     all_nodes = get_3_new_nodes(triangle.graph.x.numpy())
     old_neighbors = triangle.neighbors
     old_nv = [triangle.i1_nv, triangle.i2_nv, triangle.i3_nv]
-    triangle.delete_triangle()
+    triangle.remove_all_neighbors()
     triangles = make_4_triangles(all_nodes, old_nv)
-    y = 0
+    return triangles, all_nodes[-3:,:].tolist(), old_neighbors
 
 def get_3_new_nodes(x):
     result = x
@@ -139,26 +139,36 @@ def get_3_new_nodes(x):
     return result
 
 def make_4_triangles(nodes, old_nv):
-    return [Triangle(graph=make_triangle_graph(nodes[0, :], nodes[1, :], nodes[3, :]),
+    node_3_nv = max(old_nv[0], old_nv[1]) + 1
+    node_4_nv = max(old_nv[0], old_nv[2]) + 1
+    node_5_nv = max(old_nv[1], old_nv[2]) + 1
+
+
+    return [Triangle(graph=make_triangle_graph(nodes[0, :], nodes[3, :], nodes[4, :]),
                      i1_nv=old_nv[0],
-                     i2_nv=old_nv[1],
-                     i3_nv=max(old_nv[0], old_nv[1]) + 1),
-                 Triangle(graph=make_triangle_graph(nodes[0, :], nodes[2, :], nodes[4, :]),
-                          i1_nv=old_nv[0],
+                     i2_nv=node_3_nv,
+                     i3_nv=node_4_nv),
+                 Triangle(graph=make_triangle_graph(nodes[1, :], nodes[3, :], nodes[5, :]),
+                          i1_nv=node_3_nv,
                           i2_nv=old_nv[2],
-                          i3_nv=max(old_nv[0], old_nv[2]) + 1),
-                 Triangle(graph=make_triangle_graph(nodes[1, :], nodes[2, :], nodes[5, :]),
-                          i1_nv=old_nv[1],
-                          i2_nv=old_nv[2],
-                          i3_nv=max(old_nv[1], old_nv[2]) + 1),
+                          i3_nv=node_5_nv),
+                 Triangle(graph=make_triangle_graph(nodes[2, :], nodes[4, :], nodes[5, :]),
+                          i1_nv=old_nv[2],
+                          i2_nv=node_4_nv,
+                          i3_nv=node_5_nv),
                  Triangle(graph=make_triangle_graph(nodes[3, :], nodes[4, :], nodes[5, :]),
-                          i1_nv=max(old_nv[0], old_nv[1]) + 1,
-                          i2_nv=max(old_nv[0], old_nv[2]) + 1,
-                          i3_nv=max(old_nv[1], old_nv[2]) + 1)]
+                          i1_nv=node_3_nv,
+                          i2_nv=node_4_nv,
+                          i3_nv=node_5_nv)]
 
 def make_triangle_graph(v1, v2, v3):
-    x = torch.tensor([[v1], [v2], [v3]])
+    x = torch.from_numpy(np.stack((v1, v2, v3)))
     edge_index = torch.tensor([[0,1], [0,2], [1,2]])
     return Data(x=x, edge_index=edge_index)
 
-test_adaptive_refinement(graph=make_test_graph(), max_error=1, idx_feature=3)
+path = '../data/graph.pt'
+
+graph = torch.load(path)
+
+test_adaptive_refinement(graph=graph, max_error=0.1, idx_feature=3)
+test_mash = Mash(make_test_graph())
