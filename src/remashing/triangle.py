@@ -11,8 +11,16 @@ class Triangle:
         self.i3_nv = i3_nv
         self.neighbors = []
 
-    def get_error(self, idx_feature, constant=1):
+    def get_error(self, constant=1):
+        error = 0
         nodes =  self.graph.to_dict()['x']
+        feature_amount = nodes[1,:].size()[0]
+        for i in range(3, feature_amount):
+            error += self.get_error_one_feature(idx_feature=i)
+        return error
+
+    def get_error_one_feature(self, idx_feature, constant=1):
+        nodes = self.graph.to_dict()['x']
         return max(abs(nodes[0, idx_feature] - nodes[1, idx_feature]),
                    abs(nodes[1, idx_feature] - nodes[2, idx_feature]),
                    abs(nodes[2, idx_feature] - nodes[0, idx_feature])).item() * constant
