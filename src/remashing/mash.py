@@ -16,6 +16,16 @@ class Mash:
         # link neighbor of triangles
         self.actualize_neighbors_t(self.triangles)
 
+        self.passive_refinement_1 = []
+        self.passive_refinement_2 = []
+        self.passive_refinement_3 = []
+
+        # triangles nad nodes created in this iteration
+        self.created_triangles = set()
+        self.created_nodes = set()
+        # changed triangles that are good and need to be refined.
+        self.changed_triangles = set()
+
     def adaptive_remash_Graph(self):
         pass
 
@@ -23,22 +33,141 @@ class Mash:
         pass
         # return Graph, first part
 
-    def adaptive_refinement(self, max_error, idx_feature):
-        self.sort_triangles_into_low_high_error(self.triangles)
+    def adaptive_refinement(self, max_error):
+        self.sort_triangles_into_low_high_error(triangles=self.triangles,
+                                                max_error=max_error)
         while(self.triangles_high_Error):
-            self.created_triangles = set()
-            self.created_nodes = set()
-            self.changed_triangles = set()
 
             for t in self.triangles_high_Error:
                 new_triangles, new_nodes, self.changed_neighbors = self.refine_triangle_bad(t)
                 self.created_triangles = (set(new_triangles) | self.created_triangles)
                 nodes_tuple = [tuple(node) for node in new_nodes]
                 self.created_nodes = (set(nodes_tuple) | self.created_nodes)
-                self.changed_triangles = (set(self.changed_neighbors) | self.changed_triangles)
+                self.changed_triangles = ((set(self.changed_neighbors)& set(self.triangles_low_Error)) | self.changed_triangles)
 
-            good_changed_triangles = list(self.changed_triangles & set(self.triangles_low_Error))
-            for t in good_changed_triangles:
+            self.sort_passive_refinement_cases()
+            self.take_care_of_passive_refinement_2()
+            for t in self.passive_refinement_3:
+                self.take_care_of_passive_refinement_3(t)
+            for t in self.passive_refinement_1:
+                self.take_care_of_passive_refinement_1(t)
+
+            self.actualize_neighbors_t(self.created_triangles)
+            self.triangles.extend(self.created_triangles)
+
+            # clear sets that were used for one iteration
+            self.triangles_high_Error.clear()
+            self.sort_triangles_into_low_high_error(triangles=self.created_triangles,
+                                                    max_error=max_error)
+            print(self.triangles_low_Error)
+            self.created_triangles.clear()
+            self.created_nodes.clear()
+            self.changed_neighbors.clear()
+
+
+        print("---")
+        for t in self.triangles:
+            print(t.get_error())
+
+
+    def take_care_of_passive_refinement_1(self, triangle):
+        new_node = self.get_changed_nodes(triangle=triangle)
+        possible_nodes = self.add_3_new_nodes(triangle.graph.x.numpy())
+        if np.array_equal(new_node, possible_nodes[3, :]):
+            two_triangles, two_neighbors = self.refine_triangle_1(triangle=triangle,
+                                                                  new_node=new_node,
+                                                                  shared_node=possible_nodes[2, :],
+                                                                  node_3=possible_nodes[1, :],
+                                                                  node_4=possible_nodes[0, :],
+                                                                  shared_node_nv=triangle.i3_nv,
+                                                                  node_3_nv=triangle.i2_nv,
+                                                                  node_4_nv=triangle.i1_nv,
+                                                                  new_node_nv=max(triangle.i1_nv, triangle.i2_nv) + 1)
+        self.actualize_neighbors_t(two_triangles.extend(two_neighbors))
+        self.created_triangles = self.created_triangles | set(two_triangles)
+
+    def refine_triangle_1(self, triangle,  new_node, shared_node, node_3, node_4, shared_node_nv, node_3_nv, node_4_nv, new_node_nv):
+        old_neighbors = triangle.neighbors
+        triangles = [Triangle(graph=self.make_triangle_graph(new_node, shared_node, node_3),
+                     i1_nv=new_node_nv,
+                     i2_nv=shared_node_nv,
+                     i3_nv=node_3_nv),
+                     Triangle(graph=self.make_triangle_graph(new_node, shared_node, node_4),
+                              i1_nv=new_node_nv,
+                              i2_nv=shared_node_nv,
+                              i3_nv=node_4_nv)]
+        new_neighbors = [n for n in old_neighbors if self.triangles_are_neighbors(triangles[0], triangle) or self.triangles_are_neighbors(triangles[1], triangle)]
+        # destory old triangle
+        self.triangles_low_Error.remove(triangle)
+        triangle.remove_all_neighbors()
+        self.triangles.remove(triangle)
+
+        return triangles, new_neighbors
+
+    # take care of the passive refinement triangles case 3
+    def take_care_of_passive_refinement_3(self, triangle):
+        # gets all 6 nodes, the first three being the original ones.
+        all_nodes = self.add_3_new_nodes(triangle.graph.x.numpy())
+
+        # create four new triangles
+        old_nv = [triangle.i1_nv, triangle.i2_nv, triangle.i3_nv]
+        triangles = self.make_4_triangles(all_nodes, old_nv)
+        self.created_triangles.extend(triangles)
+
+        # destroy old triangle
+        self.triangles_low_Error.remove(triangle)
+        triangle.remove_all_neighbors()
+        self.triangles.remove(triangle)
+
+    # take care of the passive refinement triangles case 2 and get them into the third ore first refinement case
+    def take_care_of_passive_refinement_2(self):
+        while (self.passive_refinement_2):
+            t = self.passive_refinement_2.pop()
+            new_node = self.get_third_node_passive_refinement_2(t)
+            self.created_nodes.append(new_node)
+            self.passive_refinement_3.append(t)
+            t_affected = self.triangle_affected_by_new_node(t.neighbors, new_node)
+            if t_affected:
+                if t_affected in self.passive_refinement_1:
+                    self.passive_refinement_1.remove(t_affected)
+                    self.passive_refinement_2.append(t_affected)
+                elif t_affected in self.passive_refinement_2:
+                    self.passive_refinement_2.remove(t_affected)
+                    self.passive_refinement_3.append(t_affected)
+                else:
+                    self.passive_refinement_1.append(t_affected)
+
+    # get all the passive refinement triangles into the three different categories
+    def sort_passive_refinement_cases(self):
+        for t in self.changed_triangles:
+            changed_nodes = self.get_changed_nodes(t)[3:, :]
+            if len(changed_nodes) == 3:
+                self.passive_refinement_3.append(t)
+            elif len(changed_nodes) == 2:
+                self.passive_refinement_3.append(t)
+            elif len(changed_nodes) == 1:
+                self.passive_refinement_3.append(t)
+            else:
+                print("Error, len(changed_nodes) muss zwischen 1 und 3 sein.")
+
+    # returns the third node
+    def get_third_node_passive_refinement_2(self, triangle):
+        possible_nodes = self.add_3_new_nodes(triangle.graph.x.numpy())[3:, :]
+        return (possible_nodes - self.created_nodes)
+
+    # returns the nodes that change the triangle
+    def get_changed_nodes(self, triangle):
+        possible_nodes = self.add_3_new_nodes(triangle.graph.x.numpy())[3:,:]
+        x = np.asarray(self.created_nodes)
+        return possible_nodes & x
+
+    # returns the triangle that is affected by the new node.
+    def triangle_affected_by_new_node(self, triangles, new_node):
+        possible_nodes = self.add_3_new_nodes(triangles.graph.x.numpy())[3:,:]
+        for t in triangles:
+            if new_node in possible_nodes:
+                return t
+        return None
 
 
     # input: list of triangles.
@@ -72,10 +201,10 @@ class Mash:
 
     # gets triangles, the feature for the error and the max_error allowed.
     # sorts all input triangles into self.triangles_low_Error or self.triangles_high_Error.
-    def sort_triangles_into_low_high_error(self, triangles, idx_feature, max_error):
+    def sort_triangles_into_low_high_error(self, triangles, max_error):
         for t in triangles:
-            print(t.get_error(idx_feature))
-            if t.get_error(idx_feature) < max_error:
+            print(t.get_error())
+            if t.get_error() < max_error:
                 self.triangles_low_Error.append(t)
             else:
                 self.triangles_high_Error.append(t)
