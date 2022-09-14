@@ -20,7 +20,21 @@ def adaptive_refinement(Graph):
 
 def make_test_graph():
     x = torch.tensor(
-        [[1, 1, 1, 1, 1], [1, 2, 2, 2, 1], [1, 3, 3, 9, 1], [2, 1, 1, 1, 0.5], [2, 2, 2, 7, 1], [2, 3, 3, 16, 1.5]])
+        [[1, 1, 1, 1, 1, 1], [1, 2, 1, 2, 2, 1], [1, 3, 1, 3, 9, 1], [2, 1, 1, 1, 1, 0.5], [2, 2, 1, 2, 7, 1], [2, 3, 1, 3, 16, 1.5]])
+    edge_index = torch.tensor([[0, 0, 0, 1, 1, 1, 2, 3, 4],
+                               [1, 3, 4, 2, 4, 5, 5, 4, 5,]])
+    return Data(x=x, edge_index=edge_index)
+
+def make_test_graph2():
+    x = torch.tensor(
+        [[1, 1, 1, 16, 93, -33], [1, 2, 1, 3, 15, -7], [1, 3, 1, 40, 92, 10], [2, 1, 1, -33, -33, 12], [2, 2, 1, 0, -12, -20], [2, 3, 1, -20, 16, 30]])
+    edge_index = torch.tensor([[0, 0, 0, 1, 1, 1, 2, 3, 4],
+                               [1, 3, 4, 2, 4, 5, 5, 4, 5,]])
+    return Data(x=x, edge_index=edge_index)
+
+def make_test_graph3():
+    x = torch.tensor(
+        [[1, 1, 1, 1, 1, 1], [1, 2, 1, 0, 1, 1], [1, 3, 1, 3, 9, 1], [2, 1, 1, 20, 15, 10], [2, 2, 1, 2, 1, 1], [2, 3, 1, 9, 16, 25]])
     edge_index = torch.tensor([[0, 0, 0, 1, 1, 1, 2, 3, 4],
                                [1, 3, 4, 2, 4, 5, 5, 4, 5,]])
     return Data(x=x, edge_index=edge_index)
@@ -166,9 +180,10 @@ def make_triangle_graph(v1, v2, v3):
     edge_index = torch.tensor([[0,1], [0,2], [1,2]])
     return Data(x=x, edge_index=edge_index)
 
-path = '../data/graph.pt'
+#path = '../data/graph.pt'
+#mash = Mash(graph=torch.load(path))
 
-graph = torch.load(path)
+#test_adaptive_refinement(graph=graph, max_error=0.1, idx_feature=3)
+test_mash = Mash(make_test_graph3())
 
-test_adaptive_refinement(graph=graph, max_error=0.1, idx_feature=3)
-test_mash = Mash(make_test_graph())
+test_mash.adaptive_refinement(max_error=4)
