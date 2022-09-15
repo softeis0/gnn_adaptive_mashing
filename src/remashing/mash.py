@@ -28,13 +28,6 @@ class Mash:
 
         self.remashed_Graph = None
 
-    def adaptive_remash_Graph(self):
-        pass
-
-    def adaptive_procedure(self):
-        pass
-        # return Graph, first part
-
     def adaptive_refinement(self, max_error):
         self.sort_triangles_into_low_high_error(triangles=self.triangles,
                                                 max_error=max_error)
@@ -45,12 +38,15 @@ class Mash:
                 self.created_triangles = (set(new_triangles) | self.created_triangles)
                 nodes_tuple = [tuple(node) for node in new_nodes]
                 self.created_nodes = (set(nodes_tuple) | self.created_nodes)
-                self.changed_triangles = ((set(self.changed_neighbors)& set(self.triangles_low_Error)) | self.changed_triangles)
+                self.changed_triangles = ((set(self.changed_neighbors) & set(self.triangles_low_Error)) | self.changed_triangles)
 
             self.sort_passive_refinement_cases()
             self.take_care_of_passive_refinement_2()
             for t in self.passive_refinement_3:
                 self.take_care_of_passive_refinement_3(t)
+            for t in self.passive_refinement_1:
+                if t.is_special_triangle():
+                    self.take_care_of_passive_refinement_1_special(t)
             for t in self.passive_refinement_1:
                 self.take_care_of_passive_refinement_1(t)
 
@@ -65,14 +61,83 @@ class Mash:
             self.created_triangles.clear()
             self.created_nodes.clear()
             self.changed_neighbors.clear()
+            self.passive_refinement_1.clear()
+            self.passive_refinement_2.clear()
+            self.passive_refinement_3.clear()
+            self.changed_triangles.clear()
 
 
         print("---")
         graph_nodes = set()
         for t in self.triangles:
             print(t.get_error())
-            graph_nodes = graph_nodes & set(t.graph.x.numpy)
+            #graph_nodes = graph_nodes & set(t.graph.x.numpy)
         self.remashed_Graph = Data()
+
+
+    def take_care_of_passive_refinement_1_special(self, triangle):
+        for n in triangle.neighbors:
+            if n == triangle.split_partner:
+                neighbor = n
+                break
+        new_node_special_t = self.get_changed_nodes(triangle)
+        created_new_node, big_triangle = self.make_big_triangle(neighbor, triangle)
+        nodes_for_triangles = self.add_3_new_nodes(big_triangle.graph.x.numpy())
+        new_triangles = self.make_4_triangles(nodes_for_triangles, [big_triangle.i1_nv, big_triangle.i2_nv, big_triangle.i3_nv])
+        new_nodes = set([tuple(x) for x in nodes_for_triangles[-3:,:]]) - set([tuple(created_new_node)])
+        # adjust triangles affected by new nodes
+        t_affected = []
+        t_affected.append(self.triangle_affected_by_new_node(triangle.neighbors, list(new_nodes)[0]))
+        t_affected.append(self.triangle_affected_by_new_node(triangle.neighbors, list(new_nodes)[1]))
+        t_affected.append(self.triangle_affected_by_new_node(neighbor.neighbors, list(new_nodes)[0]))
+        t_affected.append(self.triangle_affected_by_new_node(neighbor.neighbors, list(new_nodes)[1]))
+        t_affected.remove(triangle)
+        t_affected.remove(neighbor)
+
+        for t in t_affected:
+            if t:
+                if t in self.passive_refinement_1:
+                    self.passive_refinement_1.remove(t)
+                    self.passive_refinement_2.append(t)
+                elif t in self.passive_refinement_2:
+                    self.passive_refinement_2.remove(t)
+                    self.passive_refinement_3.append(t)
+                else:
+                    self.passive_refinement_1.append(t)
+
+        for t in new_triangles:
+            changed_nodes = self.get_changed_nodes(t)
+            if len(changed_nodes) == 1:
+                self.passive_refinement_1.append(t)
+            else:
+                self.created_triangles.add(t)
+
+        # destory old triangles
+        self.created_nodes = new_nodes | self.created_nodes
+        self.triangles_low_Error.remove(triangle)
+        triangle.remove_all_neighbors()
+        self.triangles.remove(triangle)
+        self.triangles_low_Error.remove(neighbor)
+        neighbor.remove_all_neighbors()
+        self.triangles.remove(neighbor)
+        if triangle in self.passive_refinement_1:
+            self.passive_refinement_1.remove(triangle)
+        if neighbor in self.passive_refinement_1:
+            self.passive_refinement_1.remove(neighbor)
+
+
+    def make_big_triangle(self, t1, t2):
+        nodes_1 = set([tuple(x) for x in t1.graph.x.numpy()])
+        nodes_2 = set([tuple(x) for x in t2.graph.x.numpy()])
+        two_nodes_for_new_triangle = (nodes_1 | nodes_2) - (nodes_1 & nodes_2)
+        created_new_node = (np.asarray((list(two_nodes_for_new_triangle)[0]) + np.asarray(list(two_nodes_for_new_triangle)[1]))/ 2)
+        last_node = nodes_1 - two_nodes_for_new_triangle - set([tuple(created_new_node)])
+
+        new_triangle = Triangle(graph=self.make_triangle_graph(np.asarray(list(two_nodes_for_new_triangle)[0]), np.asarray(list(two_nodes_for_new_triangle)[1]), np.asarray(list(last_node)[0])),
+                                                               i1_nv=1,
+                                                               i2_nv=1,
+                                                               i3_nv=1)
+        return created_new_node, new_triangle
 
 
     def take_care_of_passive_refinement_1(self, triangle):
@@ -110,6 +175,8 @@ class Mash:
                                                                   new_node_nv=max(triangle.i3_nv, triangle.i2_nv) + 1)
         two_neighbors.extend(two_triangles)
         self.actualize_neighbors_t(two_neighbors)
+        two_triangles[0].set_split_partner(two_triangles[1])
+        two_triangles[1].set_split_partner(two_triangles[0])
         self.created_triangles = self.created_triangles | set(two_triangles)
 
     def refine_triangle_1(self, triangle,  new_node, shared_node, node_3, node_4, shared_node_nv, node_3_nv, node_4_nv, new_node_nv):
@@ -124,9 +191,11 @@ class Mash:
                               i3_nv=node_4_nv)]
         new_neighbors = [n for n in old_neighbors if self.triangles_are_neighbors(triangles[0], n) or self.triangles_are_neighbors(triangles[1], n)]
         # destory old triangle
-        self.triangles_low_Error.remove(triangle)
+        if triangle in self.triangles_low_Error:
+            self.triangles_low_Error.remove(triangle)
         triangle.remove_all_neighbors()
-        self.triangles.remove(triangle)
+        if triangle in self.triangles:
+            self.triangles.remove(triangle)
 
         return triangles, new_neighbors
 
@@ -150,7 +219,7 @@ class Mash:
         while (self.passive_refinement_2):
             t = self.passive_refinement_2.pop()
             new_node = self.get_third_node_passive_refinement_2(t)
-            self.created_nodes.append(new_node)
+            self.created_nodes = self.created_nodes | set([tuple(x) for x in new_node.tolist()])
             self.passive_refinement_3.append(t)
             t_affected = self.triangle_affected_by_new_node(t.neighbors, new_node)
             if t_affected:
@@ -179,7 +248,11 @@ class Mash:
     # returns the third node
     def get_third_node_passive_refinement_2(self, triangle):
         possible_nodes = self.add_3_new_nodes(triangle.graph.x.numpy())[3:, :]
-        return (possible_nodes - self.created_nodes)
+        possible_nodes_set = set([tuple(x) for x in possible_nodes])
+        result = np.asarray(list(possible_nodes_set - self.created_nodes))
+        return result
+
+
 
     # returns the nodes that change the triangle
     def get_changed_nodes(self, triangle):
@@ -190,9 +263,9 @@ class Mash:
 
     # returns the triangle that is affected by the new node.
     def triangle_affected_by_new_node(self, triangles, new_node):
-        possible_nodes = self.add_3_new_nodes(triangles.graph.x.numpy())[3:,:]
         for t in triangles:
-            if new_node in possible_nodes:
+            possible_nodes = self.add_3_new_nodes(t.graph.x.numpy())[3:, :]
+            if np.sum(np.isin(new_node, possible_nodes)) == np.isin(new_node, possible_nodes).size:
                 return t
         return None
 
@@ -246,6 +319,13 @@ class Mash:
         # create four new triangles
         old_nv = [triangle.i1_nv, triangle.i2_nv, triangle.i3_nv]
         triangles = self.make_4_triangles(all_nodes, old_nv)
+
+        """
+        for o in old_neighbors:
+            if o in self.triangles_low_Error:
+                triangle.mark_neighbors(all_nodes)
+                break
+        """
 
         # destroy old triangle
         triangle.remove_all_neighbors()
