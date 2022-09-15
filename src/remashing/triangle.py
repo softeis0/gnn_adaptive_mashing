@@ -10,6 +10,7 @@ class Triangle:
         self.i2_nv = i2_nv
         self.i3_nv = i3_nv
         self.neighbors = []
+        self.split_partner = None
 
     def get_error(self, constant=1):
         error = 0
@@ -39,5 +40,30 @@ class Triangle:
 
     # unlinks self with all neighbor triangles.
     def remove_all_neighbors(self):
+        neighbors_copy = self.neighbors.copy()
+        for t in neighbors_copy:
+            self.remove_neighbor(t)
+
+    def is_special_triangle(self):
+        nvs = [self.i1_nv, self.i2_nv, self.i3_nv]
+        max_nv = max(nvs)
+        count = 0
+        for nv in nvs:
+            if nv == max_nv:
+                count += 1
+        if count < 2:
+            return True
+        else:
+            return False
+
+    def set_split_partner(self, triangle):
+        self.split_partner = triangle
+"""
+    def mark_neighbors(self, all_nodes):
         for t in self.neighbors:
-            t.remove_neighbor(self)
+            t.mark(self, all_nodes)
+
+    def mark(self, triangle, all_nodes):
+        self.marked_neighbors.append(triangle)
+        self.all_nodes = all_nodes
+        """
