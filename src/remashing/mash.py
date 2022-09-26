@@ -290,31 +290,6 @@ class Mash:
             self.triangles[axis[0]].add_neighbor(self.triangles[axis[1]])
         np.apply_along_axis(add_neighbor, 1, indices4)
 
-
-
-        triangles_copy = triangles.copy()
-        for t in tqdm(triangles):
-            triangles_copy.remove(t)
-            for t_compare in triangles_copy:
-                if self.triangles_are_neighbors(t, t_compare):
-                    t.add_neighbor(t_compare)
-
-    # input: two triangles t1 and t2.
-    # output: True if they are neighbors, else False.
-    def triangles_are_neighbors(self, t1, t2):
-        x1 = t1.graph.x.numpy()
-        x2 = t2.graph.x.numpy()
-        x_len = x1[0].size
-        # check how many nodes are equal.
-        x_sum = np.sum(np.equal(x1, x2), axis=1)
-        equal_nodes = x_sum[x_sum == x_len].size
-        if equal_nodes == 2:
-            return True
-        elif equal_nodes > 2:
-            print("Error, mehr als 2 nodes gleich bei Dreieckvergleich")
-        else:
-            return False
-
     # gets triangles, the feature for the error and the max_error allowed.
     # sorts all input triangles into self.triangles_low_Error or self.triangles_high_Error.
     def sort_triangles_into_low_high_error(self, triangles, max_error):
