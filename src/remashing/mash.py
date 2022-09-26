@@ -3,6 +3,7 @@ import torch
 import numpy as np
 from torch_geometric.data import Data
 from tqdm import tqdm
+from tqdm import trange
 
 class Mash:
     def __init__(self, graph):
@@ -30,7 +31,7 @@ class Mash:
         self.remashed_Graph = None
 
     def adaptive_refinement(self, max_error):
-        for i in range(1):
+        for i in trange(1):
             self.sort_triangles_into_low_high_error(triangles=self.triangles,
                                                     max_error=max_error)
             while(self.triangles_high_Error):
@@ -52,7 +53,7 @@ class Mash:
                 for t in self.passive_refinement_1:
                     self.take_care_of_passive_refinement_1(t)
 
-                self.actualize_neighbors_t(self.created_triangles)
+                self.actualize_neighbors_t(list(self.created_triangles))
                 self.triangles.extend(self.created_triangles)
 
                 # clear sets that were used for one iteration
@@ -281,14 +282,32 @@ class Mash:
     # the function links all the neighbors of the input triangles as neighbors.
     def actualize_neighbors_t(self, triangles):
         self.triangles_np = np.asarray(list(map(lambda x: x.to_numpy(), triangles)))
-        self.indices = np.apply_along_axis(self.triangle_func, 2, self.triangles_np)
-        indices2 = np.apply_along_axis(np.sum, 1, self.indices)
-        indices3 = np.apply_along_axis(np.sum, 2, indices2)
-        half_full_matrix = np.tril(indices3)
-        indices4 = np.argwhere(half_full_matrix == 2)
-        def add_neighbor(axis):
-            self.triangles[axis[0]].add_neighbor(self.triangles[axis[1]])
-        np.apply_along_axis(add_neighbor, 1, indices4)
+        for i in trange(1):
+            # teuer
+            self.indices = np.apply_along_axis(self.triangle_func, 2, self.triangles_np)
+            indices2 = np.apply_along_axis(np.sum, 1, self.indices)
+            indices3 = np.apply_along_axis(np.sum, 2, indices2)
+            half_full_matrix = np.tril(indices3)
+            indices4 = np.argwhere(half_full_matrix == 2)
+            def add_neighbor(axis):
+                idx1 = axis[0]
+                idx2 = axis[1]
+                triangles[idx1].add_neighbor(triangles[idx2])
+            np.apply_along_axis(add_neighbor, 1, indices4)
+
+    def triangles_are_neighbors(self, t1, t2):
+        x1 = t1.graph.x.numpy()
+        x2 = t2.graph.x.numpy()
+        x_len = x1[0].size
+        # check how many nodes are equal.
+        x_sum = np.sum(np.equal(x1, x2), axis=1)
+        equal_nodes = x_sum[x_sum == x_len].size
+        if equal_nodes == 2:
+            return True
+        elif equal_nodes > 2:
+            print("Error, mehr als 2 nodes gleich bei Dreieckvergleich")
+        else:
+            return False
 
     # gets triangles, the feature for the error and the max_error allowed.
     # sorts all input triangles into self.triangles_low_Error or self.triangles_high_Error.

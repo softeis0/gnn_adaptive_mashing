@@ -180,10 +180,10 @@ def make_triangle_graph(v1, v2, v3):
     edge_index = torch.tensor([[0,1], [0,2], [1,2]])
     return Data(x=x, edge_index=edge_index)
 
-#path = '../data/graph.pt'
-#mash = Mash(graph=torch.load(path))
+path = '../data/basegraph.pt'
+mash = Mash(graph=torch.load(path))
 
 #test_adaptive_refinement(graph=graph, max_error=0.1, idx_feature=3)
-test_mash = Mash(make_test_graph3())
+#test_mash = Mash(make_test_graph3())
 
-test_mash.adaptive_refinement(max_error=4)
+#test_mash.adaptive_refinement(max_error=4)

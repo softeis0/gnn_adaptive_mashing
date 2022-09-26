@@ -4,10 +4,10 @@ from torch_geometric.data import Data
 from torch_geometric.utils import to_trimesh
 from torch_geometric import utils as geom_utils
 
-path = '../data/graph.pt'
+path = '../data/basegraph.pt'
 
 graph = torch.load(path)
-
+triangles = graph['triangles']
 print(graph)
 
 # make own graph
