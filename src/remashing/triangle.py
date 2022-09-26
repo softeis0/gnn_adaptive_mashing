@@ -1,5 +1,6 @@
 import torch
 from torch_geometric.data import Data
+import numpy as np
 
 class Triangle:
 
@@ -58,6 +59,9 @@ class Triangle:
 
     def set_split_partner(self, triangle):
         self.split_partner = triangle
+
+    def to_numpy(self):
+        return self.graph.x.numpy()
 """
     def mark_neighbors(self, all_nodes):
         for t in self.neighbors:
