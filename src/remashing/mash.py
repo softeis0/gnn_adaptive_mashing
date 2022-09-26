@@ -2,6 +2,7 @@ from src.remashing.triangle import Triangle
 import torch
 import numpy as np
 from torch_geometric.data import Data
+from tqdm import tqdm
 
 class Mash:
     def __init__(self, graph):
@@ -29,50 +30,49 @@ class Mash:
         self.remashed_Graph = None
 
     def adaptive_refinement(self, max_error):
-        self.sort_triangles_into_low_high_error(triangles=self.triangles,
-                                                max_error=max_error)
-        while(self.triangles_high_Error):
-
-            for t in self.triangles_high_Error:
-                new_triangles, new_nodes, self.changed_neighbors = self.refine_triangle_bad(t)
-                self.created_triangles = (set(new_triangles) | self.created_triangles)
-                nodes_tuple = [tuple(node) for node in new_nodes]
-                self.created_nodes = (set(nodes_tuple) | self.created_nodes)
-                self.changed_triangles = ((set(self.changed_neighbors) & set(self.triangles_low_Error)) | self.changed_triangles)
-
-            self.sort_passive_refinement_cases()
-            self.take_care_of_passive_refinement_2()
-            for t in self.passive_refinement_3:
-                self.take_care_of_passive_refinement_3(t)
-            for t in self.passive_refinement_1:
-                if t.is_special_triangle():
-                    self.take_care_of_passive_refinement_1_special(t)
-            for t in self.passive_refinement_1:
-                self.take_care_of_passive_refinement_1(t)
-
-            self.actualize_neighbors_t(self.created_triangles)
-            self.triangles.extend(self.created_triangles)
-
-            # clear sets that were used for one iteration
-            self.triangles_high_Error.clear()
-            self.sort_triangles_into_low_high_error(triangles=self.created_triangles,
+        for i in range(1):
+            self.sort_triangles_into_low_high_error(triangles=self.triangles,
                                                     max_error=max_error)
-            #print(self.triangles_low_Error)
-            self.created_triangles.clear()
-            self.created_nodes.clear()
-            self.changed_neighbors.clear()
-            self.passive_refinement_1.clear()
-            self.passive_refinement_2.clear()
-            self.passive_refinement_3.clear()
-            self.changed_triangles.clear()
+            while(self.triangles_high_Error):
+
+                for t in self.triangles_high_Error:
+                    new_triangles, new_nodes, self.changed_neighbors = self.refine_triangle_bad(t)
+                    self.created_triangles = (set(new_triangles) | self.created_triangles)
+                    nodes_tuple = [tuple(node) for node in new_nodes]
+                    self.created_nodes = (set(nodes_tuple) | self.created_nodes)
+                    self.changed_triangles = ((set(self.changed_neighbors) & set(self.triangles_low_Error)) | self.changed_triangles)
+
+                self.sort_passive_refinement_cases()
+                self.take_care_of_passive_refinement_2()
+                for t in self.passive_refinement_3:
+                    self.take_care_of_passive_refinement_3(t)
+                for t in self.passive_refinement_1:
+                    if t.is_special_triangle():
+                        self.take_care_of_passive_refinement_1_special(t)
+                for t in self.passive_refinement_1:
+                    self.take_care_of_passive_refinement_1(t)
+
+                self.actualize_neighbors_t(self.created_triangles)
+                self.triangles.extend(self.created_triangles)
+
+                # clear sets that were used for one iteration
+                self.triangles_high_Error.clear()
+                self.sort_triangles_into_low_high_error(triangles=self.created_triangles,
+                                                        max_error=max_error)
+                #print(self.triangles_low_Error)
+                self.created_triangles.clear()
+                self.created_nodes.clear()
+                self.changed_neighbors.clear()
+                self.passive_refinement_1.clear()
+                self.passive_refinement_2.clear()
+                self.passive_refinement_3.clear()
+                self.changed_triangles.clear()
 
 
-        print("---")
-        graph_nodes = set()
-        for t in self.triangles:
-            print(t.get_error())
-            #graph_nodes = graph_nodes & set(t.graph.x.numpy)
-        self.remashed_Graph = Data()
+            print("---")
+            graph_nodes = set()
+                #graph_nodes = graph_nodes & set(t.graph.x.numpy)
+            self.remashed_Graph = Data()
 
 
     def take_care_of_passive_refinement_1_special(self, triangle):
@@ -269,12 +269,31 @@ class Mash:
                 return t
         return None
 
+    def triangle_func(self, axis):
+        compared_nodes = np.apply_along_axis(self.triangle_func_compare, 2, self.triangles_np, axis_compare=axis)
+        # res = np.argwhere(np.sum(compared_nodes, axis=1) > 0)
+        return compared_nodes
+
+    def triangle_func_compare(self, axis, axis_compare):
+        return np.array_equal(axis, axis_compare)
 
     # input: list of triangles.
     # the function links all the neighbors of the input triangles as neighbors.
     def actualize_neighbors_t(self, triangles):
+        self.triangles_np = np.asarray(list(map(lambda x: x.to_numpy(), triangles)))
+        self.indices = np.apply_along_axis(self.triangle_func, 2, self.triangles_np)
+        indices2 = np.apply_along_axis(np.sum, 1, self.indices)
+        indices3 = np.apply_along_axis(np.sum, 2, indices2)
+        half_full_matrix = np.tril(indices3)
+        indices4 = np.argwhere(half_full_matrix == 2)
+        def add_neighbor(axis):
+            self.triangles[axis[0]].add_neighbor(self.triangles[axis[1]])
+        np.apply_along_axis(add_neighbor, 1, indices4)
+
+
+
         triangles_copy = triangles.copy()
-        for t in triangles:
+        for t in tqdm(triangles):
             triangles_copy.remove(t)
             for t_compare in triangles_copy:
                 if self.triangles_are_neighbors(t, t_compare):
@@ -283,15 +302,12 @@ class Mash:
     # input: two triangles t1 and t2.
     # output: True if they are neighbors, else False.
     def triangles_are_neighbors(self, t1, t2):
-        equal_nodes = 0
-        x1 = t1.graph.x
-        x2 = t2.graph.x
+        x1 = t1.graph.x.numpy()
+        x2 = t2.graph.x.numpy()
+        x_len = x1[0].size
         # check how many nodes are equal.
-        for x11 in x1:
-            for x22 in x2:
-                if torch.equal(x22, x11):
-                    equal_nodes += 1
-        # decide if triangles are neighbors, based on equal_nodes
+        x_sum = np.sum(np.equal(x1, x2), axis=1)
+        equal_nodes = x_sum[x_sum == x_len].size
         if equal_nodes == 2:
             return True
         elif equal_nodes > 2:
@@ -303,7 +319,6 @@ class Mash:
     # sorts all input triangles into self.triangles_low_Error or self.triangles_high_Error.
     def sort_triangles_into_low_high_error(self, triangles, max_error):
         for t in triangles:
-            print(t.get_error())
             if t.get_error() < max_error:
                 self.triangles_low_Error.append(t)
             else:
