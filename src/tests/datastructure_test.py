@@ -3,11 +3,15 @@ import trimesh
 from torch_geometric.data import Data
 from torch_geometric.utils import to_trimesh
 from torch_geometric import utils as geom_utils
+import pymesh
 
 path = '../data/basegraph.pt'
 
 graph = torch.load(path)
-triangles = graph['triangles']
+triangles_numpy = graph['triangles']
+nodes_numpy = graph['x']
+edges_numpy = graph['edge_index']
+mesh
 print(graph)
 
 # make own graph
