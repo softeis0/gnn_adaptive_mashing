@@ -2,21 +2,10 @@
 import torch
 from torch_geometric.data import Data
 from torch_geometric import utils as geom_utils
-from src.remashing.triangle import Triangle
+from src.remashing.triangle_mash import Triangle
 from src.remashing.mash import Mash
+from src.remashing.mash_generation_npy import MashNpy
 import numpy as np
-
-
-def adaptive_remash_Graph(Graph):
-    pass
-
-def adaptive_procedure(Graph):
-    pass
-    # return Graph, first part
-
-def adaptive_refinement(Graph):
-    pass
-    # return Graph, second part
 
 def make_test_graph():
     x = torch.tensor(
@@ -40,12 +29,13 @@ def make_test_graph3():
     return Data(x=x, edge_index=edge_index)
 
 
+#test_mash = Mash(make_test_graph3())
+#test_mash.adaptive_refinement(max_error=4)
 
 path = '../data/basegraph.pt'
-mash = Mash(graph=torch.load(path))
+mash = MashNpy(graph=torch.load(path))
 
 mash.adaptive_refinement(max_error=10)
 #test_adaptive_refinement(graph=graph, max_error=0.1, idx_feature=3)
-#test_mash = Mash(make_test_graph3())
 
-#test_mash.adaptive_refinement(max_error=4)
+

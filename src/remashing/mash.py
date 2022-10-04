@@ -1,4 +1,4 @@
-from src.remashing.triangle import Triangle
+from src.remashing.triangle_mash import Triangle
 import torch
 import numpy as np
 from torch_geometric.data import Data
@@ -8,9 +8,10 @@ from tqdm import trange
 class Mash:
     def __init__(self, graph):
         self.graph = graph
-        self.triangles_numpy = graph['triangles']
-        self.nodes_numpy = graph['x']
-        self.edges_numpy = graph['edge_index']
+        self.triangles = [Triangle(graph.subgraph(torch.tensor([0, 1, 4])), 1, 1, 1),
+                          Triangle(graph.subgraph(torch.tensor([1, 2, 5])), 1, 1, 1),
+                          Triangle(graph.subgraph(torch.tensor([0, 3, 4])), 1, 1, 1),
+                          Triangle(graph.subgraph(torch.tensor([1, 4, 5])), 1, 1, 1)]
         self.triangles_low_Error = []
         self.triangles_high_Error = []
 
