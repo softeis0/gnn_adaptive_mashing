@@ -329,13 +329,6 @@ class Mash:
         old_nv = [triangle.i1_nv, triangle.i2_nv, triangle.i3_nv]
         triangles = self.make_4_triangles(all_nodes, old_nv)
 
-        """
-        for o in old_neighbors:
-            if o in self.triangles_low_Error:
-                triangle.mark_neighbors(all_nodes)
-                break
-        """
-
         # destroy old triangle
         triangle.remove_all_neighbors()
         self.triangles.remove(triangle)
