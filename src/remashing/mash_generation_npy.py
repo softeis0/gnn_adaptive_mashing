@@ -176,15 +176,6 @@ class MashNpy:
     # adds new nodes to nodes_numpy + nodes_result_indices. returns the new indices of the nodes
     def add_nodes_global(self, nodes):
 
-
-        """self.new_nodes[self.new_nodes_index, :] = nodes[1]
-        self.new_nodes_index += 1
-        self.new_nodes[self.new_nodes_index, :] = nodes[1]
-        self.new_nodes_index += 1
-        self.new_nodes[self.new_nodes_index, :] = nodes[2]
-        self.new_nodes_index += 1
-        return"""
-
         a = np.equal(self.new_nodes, nodes[0]).all(1)
         if (a.any()):
             indice_0 = np.where(a == True)[0][0]
@@ -218,9 +209,7 @@ class MashNpy:
         self.new_triangles[self.new_triangles_index, :] = nodes[[3, 4, 5]]
         self.new_triangles_index += 1
 
-    def destroy_triangles(self, triangles): #[tuple(node) for node in new_nodes]
-        # TODO: eleminate comment
-        #set_test = set([tuple(t) for t in self.new_triangles.tolist()])
+    def destroy_triangles(self, triangles):
         triangles_set = set([tuple(t) for t in self.triangles_numpy.tolist()])
         triagnles_set_old = set([tuple(t) for t in triangles.tolist()])
         self.triangles_numpy = np.array(list(triangles_set - triagnles_set_old))
