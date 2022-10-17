@@ -5,7 +5,8 @@ from torch_geometric import utils as geom_utils
 from src.remashing.triangle_mash import Triangle
 from src.remashing.mash import Mash
 from src.remashing.mash_generation_npy import MashNpy
-import numpy as np
+import cProfile
+
 
 def make_test_graph():
     x = torch.tensor(
@@ -28,14 +29,32 @@ def make_test_graph3():
                                [1, 3, 4, 2, 4, 5, 5, 4, 5,]])
     return Data(x=x, edge_index=edge_index)
 
+def main():
+    path = '../data/basegraph.pt'
+    mash = MashNpy(graph=torch.load(path))
+    mash.adaptive_refinement(max_error=0.45)
 
-#test_mash = Mash(make_test_graph3())
-#test_mash.adaptive_refinement(max_error=4)
+    # test_mash = Mash(make_test_graph3())
+    # test_mash.adaptive_refinement(max_error=4)
 
-path = '../data/basegraph.pt'
-mash = MashNpy(graph=torch.load(path))
+if __name__=="__main__":
+    cProfile.run('main()', "output.dat")
+    import pstats
+    from pstats import SortKey
 
-mash.adaptive_refinement(max_error=10)
+    with open("output_time.txt", "w") as f:
+        p = pstats.Stats("output.dat", stream=f)
+        p.sort_stats("time").print_stats()
+
+    with open("output_calls.txt", "w") as f:
+        p = pstats.Stats("output.dat", stream=f)
+        p.sort_stats("calls").print_stats()
+
+    with open("output_cumtime.txt", "w") as f:
+        p = pstats.Stats("output.dat", stream=f)
+        p.sort_stats("cumtime").print_stats()
+
+
 #test_adaptive_refinement(graph=graph, max_error=0.1, idx_feature=3)
 
 
