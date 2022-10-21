@@ -24,6 +24,11 @@ class MashNpy:
         self.new_triangles = None
 
         self.passive_refinement_1 = np.empty([1, 3], dtype=int)  # indices
+        self.passive_refinement_1_nodes = list()
+        self.passive_refinement_triangles_from_1 = None
+        self.passive_refinement_triangles_from_1_index = 0
+        self.passive_refinement_nodes_from_1 = None
+        self.passive_refinement_nodes_from_1_index = 0
 
         self.passive_refinement_2 = np.empty([1, 3], dtype=int)  # indices
         self.passive_refinement_2_nodes = list()
@@ -56,16 +61,25 @@ class MashNpy:
             nodes_set_created = set([tuple(t) for t in self.new_nodes.tolist()])
 
             for triangle in self.triangles_low_Error:
-                self.sort_triangles_into_affected(triangle=triangle, nodes_set_created=nodes_set_created)
+                self.sort_triangles_into_affected(triangle=triangle, nodes_set_created=nodes_set_created,insert_t1=False, insert_t2=True, insert_t3=False)
+            self.passive_refinement_2 = self.passive_refinement_2[1:]
+
+            while (self.passive_refinement_2.shape[0] > 0):
+                self.insert_refinement_t_2()
+                for triangle in self.triangles_low_Error:
+                    self.sort_triangles_into_affected(triangle=triangle, nodes_set_created=nodes_set_created, insert_t1=False, insert_t2=True, insert_t3=False)
+                self.passive_refinement_2 = self.passive_refinement_2[1:]
+
+            for triangle in self.triangles_low_Error:
+                self.sort_triangles_into_affected(triangle=triangle, nodes_set_created=nodes_set_created,
+                                                  insert_t1=True, insert_t2=False, insert_t3=True)
 
             self.passive_refinement_1 = self.passive_refinement_1[1:]
-            self.passive_refinement_2 = self.passive_refinement_2[1:]
             self.passive_refinement_3 = self.passive_refinement_3[1:]
 
-            self.passive_refinement_triangles_from_2 = np.full(fill_value=-1, shape=(self.passive_refinement_2.shape[0] * 4, 3), dtype=int)
-            self.passive_refinement_nodes_from_2 = np.full(fill_value=-1, shape=(self.passive_refinement_2.shape[0], 3), dtype=float)
+            self.insert_refinement_t_1()
 
-            self.take_care_of_passive_refinement_2_npy()
+
             x = 0
             return
 
@@ -88,23 +102,78 @@ class MashNpy:
             self.passive_refinement_2.clear()
             self.passive_refinement_3.clear()
 
+    def take_care_of_passive_refinement_1(self, triangle):
+        new_node = self.get_changed_nodes(triangle=triangle)[0]
+        possible_nodes = self.add_3_new_nodes(triangle.graph.x.numpy())
+        if np.array_equal(new_node, possible_nodes[3, :]):
+            two_triangles, two_neighbors = self.refine_triangle_1(triangle=triangle,
+                                                                  new_node=new_node,
+                                                                  shared_node=possible_nodes[2, :],
+                                                                  node_3=possible_nodes[1, :],
+                                                                  node_4=possible_nodes[0, :])
 
-    def take_care_of_passive_refinement_2(self):
-        while (self.passive_refinement_2):
-            t = self.passive_refinement_2.pop()
-            new_node = self.get_third_node_passive_refinement_2(t)
-            self.created_nodes = self.created_nodes | set([tuple(x) for x in new_node.tolist()])
-            self.passive_refinement_3.append(t)
-            t_affected = self.triangle_affected_by_new_node(t.neighbors, new_node)
-            if t_affected:
-                if t_affected in self.passive_refinement_1:
-                    self.passive_refinement_1.remove(t_affected)
-                    self.passive_refinement_2.append(t_affected)
-                elif t_affected in self.passive_refinement_2:
-                    self.passive_refinement_2.remove(t_affected)
-                    self.passive_refinement_3.append(t_affected)
-                else:
-                    self.passive_refinement_1.append(t_affected)
+        elif np.array_equal(new_node, possible_nodes[4, :]):
+            two_triangles, two_neighbors = self.refine_triangle_1(triangle=triangle,
+                                                                  new_node=new_node,
+                                                                  shared_node=possible_nodes[1, :],
+                                                                  node_3=possible_nodes[2, :],
+                                                                  node_4=possible_nodes[0, :])
+        elif np.array_equal(new_node, possible_nodes[5, :]):
+            two_triangles, two_neighbors = self.refine_triangle_1(triangle=triangle,
+                                                                  new_node=new_node,
+                                                                  shared_node=possible_nodes[0, :],
+                                                                  node_3=possible_nodes[1, :],
+                                                                  node_4=possible_nodes[2, :])
+
+
+        def refine_triangle_1(self, triangle, new_node, shared_node, node_3, node_4):
+            old_neighbors = triangle.neighbors
+            triangles = [Triangle(graph=self.make_triangle_graph(new_node, shared_node, node_3)),
+                         Triangle(graph=self.make_triangle_graph(new_node, shared_node, node_4))]
+            # destory old triangle
+
+            return triangles
+
+    def insert_refinement_t_1(self):
+        local_copy_refinement_t_1 = self.passive_refinement_1
+        self.passive_refinement_triangles_from_1 = np.full(fill_value=-1,
+                                                           shape=(self.passive_refinement_1.shape[0] * 2, 3),
+                                                           dtype=int)
+        self.passive_refinement_nodes_from_1 = np.full(fill_value=-1,
+                                                       shape=(self.passive_refinement_1.shape[0], 3),
+                                                       dtype=float)
+        self.take_care_of_passive_refinement_1_npy()
+
+    def take_care_of_passive_refinement_1_npy(self):
+        while self.passive_refinement_1.shape[0] > 0:
+            triangle, self.passive_refinement_1 = self.passive_refinement_1[-1], self.passive_refinement_1[:-1]
+            new_node = self.passive_refinement_1_nodes.pop()
+
+            old_nodes = self.get_triangle_nodes(triangle=triangle)
+            possible_nodes = self.create_3_new_nodes(old_nodes=old_nodes)
+
+            if np.array_equal(np.array(list(new_node)), possible_nodes[0, :].reshape(-1, 3)):
+                indices_new_nodes = self.add_nodes_global(nodes=new_nodes)
+                indices = np.array((triangle, indices_new_nodes)).reshape(6, )
+            elif np.array_equal(np.array(list(new_node)), possible_nodes[1, :].reshape(-1, 3)):
+                pass
+            elif np.array_equal(np.array(list(new_node)), possible_nodes[2, :].reshape(-1, 3)):
+                pass
+            x=0
+
+    def insert_refinement_t_2(self):
+        local_copy_refinement_t_2 = self.passive_refinement_2
+        self.passive_refinement_triangles_from_2 = np.full(fill_value=-1,
+                                                           shape=(self.passive_refinement_2.shape[0] * 4, 3),
+                                                           dtype=int)
+        self.passive_refinement_nodes_from_2 = np.full(fill_value=-1,
+                                                       shape=(self.passive_refinement_2.shape[0], 3),
+                                                       dtype=float)
+        self.take_care_of_passive_refinement_2_npy()
+        self.nodes_numpy = np.vstack([self.nodes_numpy, self.passive_refinement_nodes_from_2])
+        self.triangles_numpy = np.vstack([self.triangles_numpy, self.passive_refinement_triangles_from_2])
+        self.destroy_triangles(local_copy_refinement_t_2, destroy_in_low_Error=True)
+        self.passive_refinement_2 = np.empty([1, 3], dtype=int)
 
     def get_third_node_passive_refinement_2(self, triangle):
         possible_nodes = self.add_3_new_nodes(triangle.graph.x.numpy())[3:, :]
@@ -113,22 +182,22 @@ class MashNpy:
         return result
 
     def take_care_of_passive_refinement_2_npy(self):
-        passive_refinement_2_local = self.passive_refinement_2
+        while self.passive_refinement_2.shape[0] > 0:
 
-        triangle, passive_refinement_2_local = passive_refinement_2_local[-1], passive_refinement_2_local[:-1]
+            triangle, self.passive_refinement_2 = self.passive_refinement_2[-1], self.passive_refinement_2[:-1]
 
-        new_node, new_nodes = self.get_new_node(triangle=triangle, created_nodes=self.passive_refinement_2_nodes.pop())
+            new_node, new_nodes = self.get_new_node(triangle=triangle, created_nodes=self.passive_refinement_2_nodes.pop())
 
-        self.passive_refinement_nodes_from_2[self.passive_refinement_nodes_from_2_index, :] = np.asarray(list(new_node))
-        self.passive_refinement_nodes_from_2_index += 1
+            self.passive_refinement_nodes_from_2[self.passive_refinement_nodes_from_2_index, :] = np.asarray(list(new_node))
+            self.passive_refinement_nodes_from_2_index += 1
 
-        indices_new_nodes = self.add_nodes_global(nodes=new_nodes)
-        indices = np.array((triangle, indices_new_nodes)).reshape(6, )
+            indices_new_nodes = self.add_nodes_global(nodes=new_nodes)
+            indices = np.array((triangle, indices_new_nodes)).reshape(6, )
 
-        # create new triangles using indices
-        self.make_4_new_triangles(nodes=indices, triangle_array=self.passive_refinement_triangles_from_2, array_index=self.passive_refinement_triangles_from_2_index)
+            # create new triangles using indices
+            self.make_4_new_triangles(nodes=indices, triangle_array=self.passive_refinement_triangles_from_2, array_index=self.passive_refinement_triangles_from_2_index)
 
-        x = 0
+            x = 0
 
 
     def get_new_node(self, triangle, created_nodes):
@@ -140,20 +209,20 @@ class MashNpy:
 
         return set_new_nodes - (set_new_nodes & set_created_nodes), new_nodes
 
-    def sort_triangles_into_affected(self, triangle, nodes_set_created):
+    def sort_triangles_into_affected(self, triangle, nodes_set_created, insert_t1=False, insert_t2=False, insert_t3=False):
 
         duplicated_nodes = self.get_duplicated_nodes(triangle, nodes_set_created)
         is_triangle_affected = len(duplicated_nodes)
-        if is_triangle_affected == 3:
+        if is_triangle_affected == 3 and insert_t3:
             self.passive_refinement_3 = np.vstack([self.passive_refinement_3, triangle])
-        elif is_triangle_affected == 2:
+        elif is_triangle_affected == 2 and insert_t2:
             self.passive_refinement_2 = np.vstack([self.passive_refinement_2, triangle])
             self.passive_refinement_2_nodes.append(duplicated_nodes)
-        elif is_triangle_affected == 1:
+        elif is_triangle_affected == 1 and insert_t1:
             self.passive_refinement_1 = np.vstack([self.passive_refinement_1, triangle])
+            self.passive_refinement_1_nodes.append(duplicated_nodes)
 
     def get_duplicated_nodes(self, triangle, nodes_set_created):
-
 
         new_nodes_triangle = self.create_3_new_nodes(self.get_triangle_nodes(triangle=triangle))
         nodes_set_triangle = set([tuple(t) for t in new_nodes_triangle.tolist()])
@@ -251,7 +320,10 @@ class MashNpy:
         triangle_array[array_index, :] = nodes[[3, 4, 5]]
         array_index[0] += 1
 
-    def destroy_triangles(self, triangles):
+    def destroy_triangles(self, triangles, destroy_in_low_Error=False):
         triangles_set = set([tuple(t) for t in self.triangles_numpy.tolist()])
         triagnles_set_old = set([tuple(t) for t in triangles.tolist()])
         self.triangles_numpy = np.array(list(triangles_set - triagnles_set_old))
+        if destroy_in_low_Error:
+            low_error_triangles_set = set([tuple(t) for t in self.triangles_low_Error])
+            self.triangles_low_Error = np.array(list(low_error_triangles_set - triagnles_set_old))
