@@ -42,6 +42,7 @@ class MashNpy:
 
     def adaptive_refinement(self, max_error):
         self.init_low_high_error(max_error)
+        i = 0
         while (self.triangles_high_Error.size != 0):
 
             self.new_nodes = np.full(fill_value=-1,shape=(self.triangles_high_Error.shape[0]*3, 3), dtype=float)
@@ -77,34 +78,45 @@ class MashNpy:
             self.passive_refinement_1 = self.passive_refinement_1[1:]
             self.passive_refinement_3 = self.passive_refinement_3[1:]
 
-            self.passive_refinement_3 = np.vstack([self.passive_refinement_3, self.triangles_numpy[:5]])
+
             self.insert_refinement_t_1()
 
-
+            # self.passive_refinement_3 = np.vstack([self.passive_refinement_3, self.triangles_numpy[:5]])
             self.insert_refinement_t_3()
 
+            self.prepare_next_loop()
 
-            x = 0
-            return
-
-            self.take_care_of_passive_refinement_2()
-            for t in self.passive_refinement_3:
-                self.take_care_of_passive_refinement_3(t)
-            for t in self.passive_refinement_1:
-                if t.is_special_triangle():
-                    self.take_care_of_passive_refinement_1_special(t)
-            for t in self.passive_refinement_1:
-                self.take_care_of_passive_refinement_1(t)
+            self.init_low_high_error(max_error)
+            i += 1
+        print(i)
 
 
-            # clear sets that were used for one iteration
-            self.triangles_high_Error.clear()
-            self.sort_triangles_into_low_high_error(triangles=self.created_triangles,
-                                                    max_error=max_error)
 
-            self.passive_refinement_1.clear()
-            self.passive_refinement_2.clear()
-            self.passive_refinement_3.clear()
+    def prepare_next_loop(self):
+        self.new_nodes = None
+        self.new_nodes_index = 0
+        self.new_triangles = None
+
+        self.passive_refinement_1 = np.empty([1, 3], dtype=int)  # indices
+        self.passive_refinement_triangles_from_1 = None
+        self.passive_refinement_triangles_from_1_index = 0
+
+        self.passive_refinement_2 = np.empty([1, 3], dtype=int)  # indices
+        self.passive_refinement_triangles_from_2 = None
+        self.passive_refinement_triangles_from_2_index = [0]
+        self.passive_refinement_nodes_from_2 = None
+        self.passive_refinement_nodes_from_2_index = 0
+
+        self.passive_refinement_3 = np.empty([1, 3], dtype=int)  # indices
+        self.passive_refinement_triangles_from_3 = None
+        self.passive_refinement_triangles_from_3_index = [0]
+
+        self.triangle_index = [0]
+
+        self.triangles_low_Error = None  # indices
+        self.triangles_high_Error = None  # indices
+        self.triangles_low_Error_index = 0
+        self.triangles_high_Error_index = 0
 
     def insert_refinement_t_3(self):
         local_copy_refinement_t_3 = self.passive_refinement_3
@@ -114,7 +126,6 @@ class MashNpy:
         self.take_care_of_passive_refinement_3_npy()
         self.triangles_numpy = np.vstack([self.triangles_numpy, self.passive_refinement_triangles_from_3])
         self.destroy_triangles(local_copy_refinement_t_3, destroy_in_low_Error=True)
-        x = 0
 
     def take_care_of_passive_refinement_3_npy(self):
         while self.passive_refinement_3.shape[0] > 0:
@@ -238,6 +249,7 @@ class MashNpy:
 
         return nodes_set_triangle & nodes_set_created
 
+    # TODO hier liegt 15% der Zeit
     def init_low_high_error(self, max_error):
         self.triangles_low_Error_index = 0
         self.triangles_high_Error_index = 0
@@ -294,6 +306,7 @@ class MashNpy:
         return nodes
 
     # adds new nodes to nodes_numpy + nodes_result_indices. returns the new indices of the nodes
+    # #TODO: hier liegt 85% der Zeit
     def add_nodes_global(self, nodes, ref_2=False):
         if ref_2:
             a = np.equal(self.passive_refinement_nodes_from_2, nodes[0]).all(1)
