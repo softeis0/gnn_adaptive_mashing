@@ -153,8 +153,8 @@ class MashNpy:
             possible_nodes = self.create_3_new_nodes(old_nodes=old_nodes)
 
             if np.array_equal(np.array(list(new_node)), possible_nodes[0, :].reshape(-1, 3)):
-                indices_new_nodes = self.add_nodes_global(nodes=new_nodes)
-                indices = np.array((triangle, indices_new_nodes)).reshape(6, )
+                indices_new_node = np.where(np.equal(self.nodes_numpy, new_node).all(1) == True)[0][0]
+                indices_t1 = np.array((triangle, indices_new_node)).reshape(6, )
             elif np.array_equal(np.array(list(new_node)), possible_nodes[1, :].reshape(-1, 3)):
                 pass
             elif np.array_equal(np.array(list(new_node)), possible_nodes[2, :].reshape(-1, 3)):
@@ -170,6 +170,7 @@ class MashNpy:
                                                        shape=(self.passive_refinement_2.shape[0], 3),
                                                        dtype=float)
         self.take_care_of_passive_refinement_2_npy()
+        self.passive_refinement_nodes_from_2 = self.passive_refinement_nodes_from_2[self.passive_refinement_nodes_from_2 != -1].reshape(-1, 3)
         self.nodes_numpy = np.vstack([self.nodes_numpy, self.passive_refinement_nodes_from_2])
         self.triangles_numpy = np.vstack([self.triangles_numpy, self.passive_refinement_triangles_from_2])
         self.destroy_triangles(local_copy_refinement_t_2, destroy_in_low_Error=True)
@@ -188,10 +189,7 @@ class MashNpy:
 
             new_node, new_nodes = self.get_new_node(triangle=triangle, created_nodes=self.passive_refinement_2_nodes.pop())
 
-            self.passive_refinement_nodes_from_2[self.passive_refinement_nodes_from_2_index, :] = np.asarray(list(new_node))
-            self.passive_refinement_nodes_from_2_index += 1
-
-            indices_new_nodes = self.add_nodes_global(nodes=new_nodes)
+            indices_new_nodes = self.add_nodes_global(nodes=new_nodes,ref_2=True)
             indices = np.array((triangle, indices_new_nodes)).reshape(6, )
 
             # create new triangles using indices
@@ -285,29 +283,64 @@ class MashNpy:
         return nodes
 
     # adds new nodes to nodes_numpy + nodes_result_indices. returns the new indices of the nodes
-    def add_nodes_global(self, nodes):
-
-        a = np.equal(self.new_nodes, nodes[0]).all(1)
-        if (a.any()):
-            indice_0 = np.where(a == True)[0][0]
+    def add_nodes_global(self, nodes, ref_2=False):
+        if ref_2:
+            a = np.equal(self.passive_refinement_nodes_from_2, nodes[0]).all(1)
+            if (a.any()):
+                indice_0 = np.where(a == True)[0][0]
+            else:
+                b = np.equal(self.nodes_numpy, nodes[0]).all(1)
+                if (b.any()):
+                    indice_0 = np.where(b == True)[0][0]
+                else:
+                    self.passive_refinement_nodes_from_2[self.passive_refinement_nodes_from_2_index, :] = nodes[0]
+                    indice_0 = self.passive_refinement_nodes_from_2_index + self.nodes_numpy.shape[0]
+                    self.passive_refinement_nodes_from_2_index += 1
+            a = np.equal(self.passive_refinement_nodes_from_2, nodes[1]).all(1)
+            if (a.any()):
+                indice_1 = np.where(a == True)[0][0]
+            else:
+                b = np.equal(self.nodes_numpy, nodes[1]).all(1)
+                if (b.any()):
+                    indice_1 = np.where(b == True)[0][0]
+                else:
+                    self.passive_refinement_nodes_from_2[self.passive_refinement_nodes_from_2_index, :] = nodes[1]
+                    indice_1 = self.passive_refinement_nodes_from_2_index + self.nodes_numpy.shape[0]
+                    self.passive_refinement_nodes_from_2_index += 1
+                a = np.equal(self.passive_refinement_nodes_from_2, nodes[2]).all(1)
+            if (a.any()):
+                indice_2 = np.where(a == True)[0][0]
+            else:
+                b = np.equal(self.nodes_numpy, nodes[2]).all(1)
+                if (b.any()):
+                    indice_2 = np.where(b == True)[0][0]
+                else:
+                    self.passive_refinement_nodes_from_2[self.passive_refinement_nodes_from_2_index, :] = nodes[2]
+                    indice_2 = self.passive_refinement_nodes_from_2_index + self.nodes_numpy.shape[0]
+                    self.passive_refinement_nodes_from_2_index += 1
+            return np.array([indice_0, indice_1, indice_2])
         else:
-            self.new_nodes[self.new_nodes_index, :] = nodes[0]
-            indice_0 = self.new_nodes_index
-            self.new_nodes_index += 1
-        a = np.equal(self.new_nodes, nodes[1]).all(1)
-        if (a.any()):
-            indice_1 = np.where(a == True)[0][0]
-        else:
-            self.new_nodes[self.new_nodes_index, :] = nodes[1]
-            indice_1 = self.new_nodes_index
-            self.new_nodes_index += 1
-        a = np.equal(self.new_nodes, nodes[2]).all(1)
-        if (a.any()):
-            indice_2 = np.where(a == True)[0][0]
-        else:
-            self.new_nodes[self.new_nodes_index, :] = nodes[2]
-            indice_2 = self.new_nodes_index
-            self.new_nodes_index += 1
+            a = np.equal(self.new_nodes, nodes[0]).all(1)
+            if (a.any()):
+                indice_0 = np.where(a == True)[0][0]
+            else:
+                self.new_nodes[self.new_nodes_index, :] = nodes[0]
+                indice_0 = self.new_nodes_index
+                self.new_nodes_index += 1
+            a = np.equal(self.new_nodes, nodes[1]).all(1)
+            if (a.any()):
+                indice_1 = np.where(a == True)[0][0]
+            else:
+                self.new_nodes[self.new_nodes_index, :] = nodes[1]
+                indice_1 = self.new_nodes_index
+                self.new_nodes_index += 1
+            a = np.equal(self.new_nodes, nodes[2]).all(1)
+            if (a.any()):
+                indice_2 = np.where(a == True)[0][0]
+            else:
+                self.new_nodes[self.new_nodes_index, :] = nodes[2]
+                indice_2 = self.new_nodes_index
+                self.new_nodes_index += 1
         return np.array([indice_0, indice_1, indice_2]) + self.nodes_numpy.shape[0]
 
     def make_4_new_triangles(self, nodes, triangle_array, array_index):
