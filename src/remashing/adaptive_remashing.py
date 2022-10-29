@@ -6,36 +6,36 @@ from src.remashing.triangle_mash import Triangle
 from src.remashing.mash import Mash
 from src.remashing.mash_generation_npy import MashNpy
 import cProfile
+import numpy as np
+from src.tests.visualize_mash import plot_sphere
 
+def euclidean_distance(x, y):
+    sq_dist = torch.sum((x-y)**2, dim=1)
+    return torch.sqrt(sq_dist)
 
-def make_test_graph():
-    x = torch.tensor(
-        [[1, 1, 1, 1, 1, 1], [1, 2, 1, 2, 2, 1], [1, 3, 1, 3, 9, 1], [2, 1, 1, 1, 1, 0.5], [2, 2, 1, 2, 7, 1], [2, 3, 1, 3, 16, 1.5]])
-    edge_index = torch.tensor([[0, 0, 0, 1, 1, 1, 2, 3, 4],
-                               [1, 3, 4, 2, 4, 5, 5, 4, 5,]])
-    return Data(x=x, edge_index=edge_index)
+def construct_pygraph(points, values, triangles):
 
-def make_test_graph2():
-    x = torch.tensor(
-        [[1, 1, 1, 16, 93, -33], [1, 2, 1, 3, 15, -7], [1, 3, 1, 40, 92, 10], [2, 1, 1, -33, -33, 12], [2, 2, 1, 0, -12, -20], [2, 3, 1, -20, 16, 30]])
-    edge_index = torch.tensor([[0, 0, 0, 1, 1, 1, 2, 3, 4],
-                               [1, 3, 4, 2, 4, 5, 5, 4, 5,]])
-    return Data(x=x, edge_index=edge_index)
+    hull = triangles
+    edge_index = np.vstack([hull[:, [0, 1]], hull[:, [0, 2]], hull[:, [1, 2]]])
+    edge_index = np.unique(edge_index, axis=0)
+    edge_index = torch.tensor(edge_index.T, dtype=torch.long)
 
-def make_test_graph3():
-    x = torch.tensor(
-        [[1, 1, 1, 1, 1, 1], [1, 2, 1, 0, 1, 1], [1, 3, 1, 3, 9, 1], [2, 1, 1, 20, 15, 10], [2, 2, 1, 2, 1, 1], [2, 3, 1, 9, 16, 25]])
-    edge_index = torch.tensor([[0, 0, 0, 1, 1, 1, 2, 3, 4],
-                               [1, 3, 4, 2, 4, 5, 5, 4, 5,]])
-    return Data(x=x, edge_index=edge_index)
+    vertex_attributes = torch.tensor(np.concatenate([points, values], axis=-1), dtype=torch.float32)
+
+    edge_length = euclidean_distance(vertex_attributes[edge_index[0], :3], vertex_attributes[edge_index[1], :3])
+
+    return Data(x=vertex_attributes, edge_index=edge_index, edge_attr=edge_length)
 
 def main():
     path_path = '../data/graph.pt'
     path_basegraph = '../data/basegraph.pt'
     mash = MashNpy(graph=torch.load(path_path), basegraph=torch.load(path_basegraph))
     mash.adaptive_refinement(max_error=.5)
-    x = 0
-
+    mash.triangles_numpy = mash.triangles_numpy[mash.triangles_numpy[:,0].argsort()]
+    points = mash.nodes_numpy[:, :3]
+    values = mash.nodes_numpy[:, -2:]
+    pygraph = construct_pygraph(points=points, values=values, triangles=mash.triangles_numpy)
+    plot_sphere(points=points, values=values[:, :1])
     # test_mash = Mash(make_test_graph3())
     # test_mash.adaptive_refinement(max_error=4)
 
