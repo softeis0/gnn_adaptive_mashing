@@ -30,9 +30,11 @@ def make_test_graph3():
     return Data(x=x, edge_index=edge_index)
 
 def main():
-    path = '../data/basegraph.pt'
-    mash = MashNpy(graph=torch.load(path))
-    mash.adaptive_refinement(max_error=0.45)
+    path_path = '../data/graph.pt'
+    path_basegraph = '../data/basegraph.pt'
+    mash = MashNpy(graph=torch.load(path_path), basegraph=torch.load(path_basegraph))
+    mash.adaptive_refinement(max_error=.5)
+    x = 0
 
     # test_mash = Mash(make_test_graph3())
     # test_mash.adaptive_refinement(max_error=4)

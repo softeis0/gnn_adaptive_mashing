@@ -7,11 +7,15 @@ from tqdm import trange
 import profile
 
 class MashNpy:
-    def __init__(self, graph):
+    def __init__(self, graph, basegraph):
         self.graph = graph
         self.triangles_numpy = graph['triangles'].numpy()
-        self.nodes_numpy = graph['x'].numpy()
+        self.features = graph['x'].numpy()
+        self.coordinates = basegraph['x'].numpy()
+        self.nodes_numpy = np.hstack([self.coordinates, self.features])
         self.edges_numpy = graph['edge_index'].numpy()
+        self.amount_features = self.features.shape[1]
+        self.length_nodes = self.nodes_numpy.shape[1]
 
         self.triangles_low_Error = None  # indices
         self.triangles_high_Error = None  # indices
@@ -45,13 +49,13 @@ class MashNpy:
         i = 0
         while (self.triangles_high_Error.size != 0):
 
-            self.new_nodes = np.full(fill_value=-1,shape=(self.triangles_high_Error.shape[0]*3, 3), dtype=float)
+            self.new_nodes = np.full(fill_value=-1,shape=(self.triangles_high_Error.shape[0]*3, self.length_nodes), dtype=float)
             self.new_triangles = np.full(fill_value=-1, shape=(self.triangles_high_Error.shape[0] * 4, 3), dtype=int)
 
             for triangle in self.triangles_high_Error:
                 self.refine_one_bad_triangle(triangle)
 
-            self.new_nodes = self.new_nodes[self.new_nodes != -1].reshape(-1, 3)
+            self.new_nodes = self.new_nodes[self.new_nodes != -1].reshape(-1, self.length_nodes)
             self.nodes_numpy = np.vstack([self.nodes_numpy, self.new_nodes])
             self.new_nodes_index = 0
             self.triangles_numpy = np.vstack([self.triangles_numpy, self.new_triangles])
@@ -89,6 +93,7 @@ class MashNpy:
             self.init_low_high_error(max_error)
             i += 1
         print(i)
+
 
     # set init values to prepare the next loop
     def prepare_next_loop(self):
@@ -146,14 +151,14 @@ class MashNpy:
                 self.passive_refinement_triangles_from_1[self.passive_refinement_triangles_from_1_index] = [
                     indice_new_node, triangle[1], triangle[2]]
                 self.passive_refinement_triangles_from_1_index += 1
-            elif np.array_equal(np.array(list(new_node)), possible_nodes[1, :].reshape(-1, 3)):
+            elif np.array_equal(np.array(list(new_node)), possible_nodes[1, :].reshape(-1, self.length_nodes)):
                 self.passive_refinement_triangles_from_1[self.passive_refinement_triangles_from_1_index] = [
                     indice_new_node, triangle[0], triangle[1]]
                 self.passive_refinement_triangles_from_1_index += 1
                 self.passive_refinement_triangles_from_1[self.passive_refinement_triangles_from_1_index] = [
                     indice_new_node, triangle[2], triangle[1]]
                 self.passive_refinement_triangles_from_1_index += 1
-            elif np.array_equal(np.array(list(new_node)), possible_nodes[2, :].reshape(-1, 3)):
+            elif np.array_equal(np.array(list(new_node)), possible_nodes[2, :].reshape(-1, self.length_nodes)):
                 self.passive_refinement_triangles_from_1[self.passive_refinement_triangles_from_1_index] = [
                     indice_new_node, triangle[2], triangle[0]]
                 self.passive_refinement_triangles_from_1_index += 1
@@ -168,10 +173,10 @@ class MashNpy:
                                                            shape=(self.passive_refinement_2.shape[0] * 4, 3),
                                                            dtype=int)
         self.passive_refinement_nodes_from_2 = np.full(fill_value=-1,
-                                                       shape=(self.passive_refinement_2.shape[0], 3),
+                                                       shape=(self.passive_refinement_2.shape[0], self.length_nodes),
                                                        dtype=float)
         self.take_care_of_passive_refinement_2_npy()
-        self.passive_refinement_nodes_from_2 = self.passive_refinement_nodes_from_2[self.passive_refinement_nodes_from_2 != -1].reshape(-1, 3)
+        self.passive_refinement_nodes_from_2 = self.passive_refinement_nodes_from_2[self.passive_refinement_nodes_from_2 != -1].reshape(-1, self.length_nodes)
         self.nodes_numpy = np.vstack([self.nodes_numpy, self.passive_refinement_nodes_from_2])
         self.triangles_numpy = np.vstack([self.triangles_numpy, self.passive_refinement_triangles_from_2])
         self.destroy_triangles(local_copy_refinement_t_2, destroy_in_low_Error=True)
@@ -220,7 +225,7 @@ class MashNpy:
             new_nodes = self.create_3_new_nodes(old_nodes=old_nodes)
 
             # get indices of all the nodes
-            indices_new_nodes = self.add_nodes_global(nodes=new_nodes)
+            indices_new_nodes = self.add_nodes_global(nodes=new_nodes, ref_2=True)
             indices = np.array((triangle, indices_new_nodes)).reshape(6, )
 
             # create new triangles using indices
@@ -262,11 +267,11 @@ class MashNpy:
     def sort_triangles_into_low_high_error(self, triangle, max_error):
         # get nodes of triangle
         triangle_nodes = self.get_triangle_nodes(triangle=triangle)
-        nodes = np.zeros(shape=(4,3))
-        nodes[0] = triangle_nodes[0]
-        nodes[1] = triangle_nodes[1]
-        nodes[2] = triangle_nodes[2]
-        nodes[3] = triangle_nodes[0]
+        nodes = np.zeros(shape=(4,self.amount_features))
+        nodes[0] = triangle_nodes[0, -self.amount_features:]
+        nodes[1] = triangle_nodes[1, -self.amount_features:]
+        nodes[2] = triangle_nodes[2, -self.amount_features:]
+        nodes[3] = triangle_nodes[0, -self.amount_features:]
         # calculate error
         difference = np.abs(np.diff(nodes, axis=0))
         dif_sum = difference.sum()
