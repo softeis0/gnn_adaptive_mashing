@@ -5,6 +5,7 @@ from torch_geometric.data import Data
 from tqdm import tqdm
 from tqdm import trange
 import profile
+from src.tests.visualize_mash import plot_sphere
 
 class MashNpy:
     def __init__(self, graph, basegraph):
@@ -45,6 +46,9 @@ class MashNpy:
 
 
     def adaptive_refinement(self, max_error):
+        points = self.nodes_numpy[:, :3]
+        values = self.nodes_numpy[:, -2:]
+        plot_sphere(points=[points[:, 0], points[:,1], points[:,2]], values=values[:, 0])
         self.init_low_high_error(max_error)
         i = 0
         while (self.triangles_high_Error.size != 0):

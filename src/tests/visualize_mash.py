@@ -2,7 +2,7 @@ import plotly.graph_objects as go
 
 
 def plot_sphere(points, values, title=None):
-    x,y,z = points.reshape(3,-1)
+    x,y,z = points
     colorscale = [
         [0, "#214F26"],
         [0.3, "#41B54F"],

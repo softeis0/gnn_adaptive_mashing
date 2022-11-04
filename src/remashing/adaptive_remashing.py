@@ -30,12 +30,12 @@ def main():
     path_path = '../data/graph.pt'
     path_basegraph = '../data/basegraph.pt'
     mash = MashNpy(graph=torch.load(path_path), basegraph=torch.load(path_basegraph))
-    mash.adaptive_refinement(max_error=.5)
+    mash.adaptive_refinement(max_error=1.5)
     mash.triangles_numpy = mash.triangles_numpy[mash.triangles_numpy[:,0].argsort()]
     points = mash.nodes_numpy[:, :3]
     values = mash.nodes_numpy[:, -2:]
+    plot_sphere(points=[points[:, 0], points[:, 1], points[:, 2]], values=values[:, 0])
     pygraph = construct_pygraph(points=points, values=values, triangles=mash.triangles_numpy)
-    plot_sphere(points=points, values=values[:, :1])
     # test_mash = Mash(make_test_graph3())
     # test_mash.adaptive_refinement(max_error=4)
 
