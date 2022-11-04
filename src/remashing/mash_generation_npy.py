@@ -17,6 +17,7 @@ class MashNpy:
         self.edges_numpy = graph['edge_index'].numpy()
         self.amount_features = self.features.shape[1]
         self.length_nodes = self.nodes_numpy.shape[1]
+        self.triangles_Error = None
 
         self.triangles_low_Error = None  # indices
         self.triangles_high_Error = None  # indices
@@ -44,11 +45,10 @@ class MashNpy:
         self.passive_refinement_triangles_from_3 = None
         self.passive_refinement_triangles_from_3_index = [0]
 
-
     def adaptive_refinement(self, max_error):
-        points = self.nodes_numpy[:, :3]
-        values = self.nodes_numpy[:, -2:]
-        plot_sphere(points=[points[:, 0], points[:,1], points[:,2]], values=values[:, 0])
+        #points = self.nodes_numpy[:, :3]
+        #values = self.nodes_numpy[:, -2:]
+        #plot_sphere(points=[points[:, 0], points[:,1], points[:,2]], values=values[:, 0])
         self.init_low_high_error(max_error)
         i = 0
         while (self.triangles_high_Error.size != 0):
@@ -97,7 +97,58 @@ class MashNpy:
             self.init_low_high_error(max_error)
             i += 1
         print(i)
+        self.update_triangles_Error()
 
+    def update_triangles_Error(self):
+        self.triangles_Error_index = 0
+        self.triangles_Error = np.full(fill_value=-1, shape=(self.triangles_numpy.shape[0], 1), dtype=float)
+        for triangle in self.triangles_numpy:
+            self.get_error_for_triangle(triangle)
+
+    def get_error_for_triangle(self, triangle):
+        triangle_nodes = self.get_triangle_nodes(triangle=triangle)
+        nodes = np.zeros(shape=(4, self.amount_features))
+        nodes[0] = triangle_nodes[0, -self.amount_features:]
+        nodes[1] = triangle_nodes[1, -self.amount_features:]
+        nodes[2] = triangle_nodes[2, -self.amount_features:]
+        nodes[3] = triangle_nodes[0, -self.amount_features:]
+        # calculate error
+        difference = np.abs(np.diff(nodes, axis=0))
+        dif_sum = difference.sum()
+        self.triangles_Error[self.triangles_Error_index] = dif_sum
+        self.triangles_Error_index += 1
+
+    # TODO hier liegt 15% der Zeit
+    # initialize triangles into high and low error
+    def init_low_high_error(self, max_error):
+        self.triangles_low_Error_index = 0
+        self.triangles_high_Error_index = 0
+        self.triangles_low_Error = np.full(fill_value=-1, shape=self.triangles_numpy.shape)  # indices
+        self.triangles_high_Error = np.full(fill_value=-1, shape=self.triangles_numpy.shape)  # indices
+        # sort triangles in high/low Error
+        np.apply_along_axis(self.sort_triangles_into_low_high_error, 1, self.triangles_numpy, max_error)
+        # remove initialized values.
+        self.triangles_low_Error = self.triangles_low_Error[self.triangles_low_Error != -1].reshape(-1, 3)
+        self.triangles_high_Error = self.triangles_high_Error[self.triangles_high_Error != -1].reshape(-1, 3)
+
+    # function to look if one triangle needs to go into high or low error
+    def sort_triangles_into_low_high_error(self, triangle, max_error):
+        # get nodes of triangle
+        triangle_nodes = self.get_triangle_nodes(triangle=triangle)
+        nodes = np.zeros(shape=(4, self.amount_features))
+        nodes[0] = triangle_nodes[0, -self.amount_features:]
+        nodes[1] = triangle_nodes[1, -self.amount_features:]
+        nodes[2] = triangle_nodes[2, -self.amount_features:]
+        nodes[3] = triangle_nodes[0, -self.amount_features:]
+        # calculate error
+        difference = np.abs(np.diff(nodes, axis=0))
+        dif_sum = difference.sum()
+        if dif_sum < max_error:
+            self.triangles_low_Error[self.triangles_low_Error_index, :] = triangle
+            self.triangles_low_Error_index += 1
+        else:
+            self.triangles_high_Error[self.triangles_high_Error_index, :] = triangle
+            self.triangles_high_Error_index += 1
 
     # set init values to prepare the next loop
     def prepare_next_loop(self):
@@ -253,38 +304,6 @@ class MashNpy:
         new_nodes_triangle = self.create_3_new_nodes(self.get_triangle_nodes(triangle=triangle))
         nodes_set_triangle = set([tuple(t) for t in new_nodes_triangle.tolist()])
         return nodes_set_triangle & nodes_set_created
-
-    # TODO hier liegt 15% der Zeit
-    # initialize triangles into high and low error
-    def init_low_high_error(self, max_error):
-        self.triangles_low_Error_index = 0
-        self.triangles_high_Error_index = 0
-        self.triangles_low_Error = np.full(fill_value=-1,shape=self.triangles_numpy.shape)  # indices
-        self.triangles_high_Error = np.full(fill_value=-1,shape=self.triangles_numpy.shape)  # indices
-        # sort triangles in high/low Error
-        np.apply_along_axis(self.sort_triangles_into_low_high_error, 1, self.triangles_numpy, max_error)
-        # remove initialized values.
-        self.triangles_low_Error = self.triangles_low_Error[self.triangles_low_Error != -1].reshape(-1, 3)
-        self.triangles_high_Error = self.triangles_high_Error[self.triangles_high_Error != -1].reshape(-1, 3)
-
-    # function to look if one triangle needs to go into high or low error
-    def sort_triangles_into_low_high_error(self, triangle, max_error):
-        # get nodes of triangle
-        triangle_nodes = self.get_triangle_nodes(triangle=triangle)
-        nodes = np.zeros(shape=(4,self.amount_features))
-        nodes[0] = triangle_nodes[0, -self.amount_features:]
-        nodes[1] = triangle_nodes[1, -self.amount_features:]
-        nodes[2] = triangle_nodes[2, -self.amount_features:]
-        nodes[3] = triangle_nodes[0, -self.amount_features:]
-        # calculate error
-        difference = np.abs(np.diff(nodes, axis=0))
-        dif_sum = difference.sum()
-        if dif_sum < max_error:
-            self.triangles_low_Error[self.triangles_low_Error_index, :] = triangle
-            self.triangles_low_Error_index += 1
-        else:
-            self.triangles_high_Error[self.triangles_high_Error_index, :] = triangle
-            self.triangles_high_Error_index += 1
 
     # refines one bad triangle
     def refine_one_bad_triangle(self, triangle):

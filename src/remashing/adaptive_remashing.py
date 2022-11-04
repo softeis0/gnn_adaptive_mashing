@@ -26,18 +26,45 @@ def construct_pygraph(points, values, triangles):
 
     return Data(x=vertex_attributes, edge_index=edge_index, edge_attr=edge_length)
 
+def show_example():
+    from pyvista import examples
+    import pyvista as pv
+    mesh = examples.load_airplane()
+    pl = pv.Plotter()
+    pl.add_mesh(mesh, show_edges=True)
+    pl.add_points(mesh.points, color='red',
+                  point_size=2)
+    pl.show()
+
+def show_mash(points, values, triangles, triangles_error):
+    import pyvista as pv
+
+    #show_example()
+    triangles_new = np.hstack([np.full(fill_value=3, shape=(triangles.shape[0], 1)), triangles])
+
+    mesh = pv.PolyData(points, triangles_new)
+    #mesh.point_data['feature_1'] = values[:, 0]
+    mesh.cell_data['Error'] = triangles_error
+    pl = pv.Plotter()
+    point_labels = values[:, 0]
+    pl.add_mesh(mesh, show_edges=True)
+    #pl.add_point_labels(points, point_labels)
+    pl.show()
+
 def main():
+
+
     path_path = '../data/graph.pt'
     path_basegraph = '../data/basegraph.pt'
     mash = MashNpy(graph=torch.load(path_path), basegraph=torch.load(path_basegraph))
-    mash.adaptive_refinement(max_error=1.5)
+    mash.adaptive_refinement(max_error=0.3)
     mash.triangles_numpy = mash.triangles_numpy[mash.triangles_numpy[:,0].argsort()]
     points = mash.nodes_numpy[:, :3]
     values = mash.nodes_numpy[:, -2:]
-    plot_sphere(points=[points[:, 0], points[:, 1], points[:, 2]], values=values[:, 0])
-    pygraph = construct_pygraph(points=points, values=values, triangles=mash.triangles_numpy)
-    # test_mash = Mash(make_test_graph3())
-    # test_mash.adaptive_refinement(max_error=4)
+    show_mash(points, values, triangles=mash.triangles_numpy, triangles_error=mash.triangles_Error)
+
+    #plot_sphere(points=[points[:, 0], points[:, 1], points[:, 2]], values=values[:, 0])
+    #pygraph = construct_pygraph(points=points, values=values, triangles=mash.triangles_numpy)
 
 if __name__=="__main__":
     cProfile.run('main()', "output.dat")
