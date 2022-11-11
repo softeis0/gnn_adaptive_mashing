@@ -67,7 +67,7 @@ class MashNpy:
 
             self.destroy_triangles(self.triangles_high_Error)
 
-            nodes_set_created = set([tuple(t) for t in self.new_nodes.tolist()])
+            nodes_set_created = set([tuple(np.around(t, 6)) for t in self.new_nodes])
 
             for triangle in self.triangles_low_Error:
                 self.sort_triangles_into_affected(triangle=triangle, nodes_set_created=nodes_set_created,insert_t1=False, insert_t2=True, insert_t3=False)
@@ -197,7 +197,7 @@ class MashNpy:
             possible_nodes = self.create_3_new_nodes(old_nodes=old_nodes)
 
             # indice of the new node
-            indice_new_node = np.where(np.equal(self.nodes_numpy, np.array(list(new_node))[0]).all(1) == True)[0][0]
+            indice_new_node = np.where(np.isclose(self.nodes_numpy, np.array(list(new_node))[0]).all(1) == True)[0][0]
 
             if np.array_equal(np.array(list(new_node))[0], possible_nodes[0, :]):
                 self.passive_refinement_triangles_from_1[self.passive_refinement_triangles_from_1_index] = [
@@ -243,7 +243,7 @@ class MashNpy:
 
             triangle, self.passive_refinement_2 = self.passive_refinement_2[-1], self.passive_refinement_2[:-1]
 
-            new_node, new_nodes = self.get_new_node(triangle=triangle, created_nodes=self.passive_refinement_2_nodes.pop())
+            new_node, new_nodes = self.get_new_node(triangle=triangle, created_nodes=self.passive_refinement_2_nodes[len(self.passive_refinement_2_nodes) - 1])
 
             indices_new_nodes = self.add_nodes_global(nodes=new_nodes,ref_2=True)
             indices = np.array((triangle, indices_new_nodes)).reshape(6, )
@@ -251,6 +251,7 @@ class MashNpy:
             # create new triangles using indices
             self.make_4_new_triangles(nodes=indices, triangle_array=self.passive_refinement_triangles_from_2, array_index=self.passive_refinement_triangles_from_2_index)
 
+            self.passive_refinement_2_nodes.pop()
     # get the one node that needs t be created for passive refinement case 2
     def get_new_node(self, triangle, created_nodes):
         old_nodes = self.get_triangle_nodes(triangle=triangle)
@@ -302,7 +303,7 @@ class MashNpy:
     # get the nodes on which the triangle is passively affected
     def get_duplicated_nodes(self, triangle, nodes_set_created):
         new_nodes_triangle = self.create_3_new_nodes(self.get_triangle_nodes(triangle=triangle))
-        nodes_set_triangle = set([tuple(t) for t in new_nodes_triangle.tolist()])
+        nodes_set_triangle = set([tuple(np.around(t, 6)) for t in new_nodes_triangle])
         return nodes_set_triangle & nodes_set_created
 
     # refines one bad triangle
@@ -336,33 +337,33 @@ class MashNpy:
     # #TODO: hier liegt 85% der Zeit
     def add_nodes_global(self, nodes, ref_2=False):
         if ref_2:
-            a = np.equal(self.passive_refinement_nodes_from_2, nodes[0]).all(1)
+            a = np.isclose(self.passive_refinement_nodes_from_2, nodes[0]).all(1)
             if (a.any()):
                 indice_0 = np.where(a == True)[0][0]
             else:
-                b = np.equal(self.nodes_numpy, nodes[0]).all(1)
+                b = np.isclose(self.nodes_numpy, nodes[0]).all(1)
                 if (b.any()):
                     indice_0 = np.where(b == True)[0][0]
                 else:
                     self.passive_refinement_nodes_from_2[self.passive_refinement_nodes_from_2_index, :] = nodes[0]
                     indice_0 = self.passive_refinement_nodes_from_2_index + self.nodes_numpy.shape[0]
                     self.passive_refinement_nodes_from_2_index += 1
-            a = np.equal(self.passive_refinement_nodes_from_2, nodes[1]).all(1)
+            a = np.isclose(self.passive_refinement_nodes_from_2, nodes[1]).all(1)
             if (a.any()):
                 indice_1 = np.where(a == True)[0][0]
             else:
-                b = np.equal(self.nodes_numpy, nodes[1]).all(1)
+                b = np.isclose(self.nodes_numpy, nodes[1]).all(1)
                 if (b.any()):
                     indice_1 = np.where(b == True)[0][0]
                 else:
                     self.passive_refinement_nodes_from_2[self.passive_refinement_nodes_from_2_index, :] = nodes[1]
                     indice_1 = self.passive_refinement_nodes_from_2_index + self.nodes_numpy.shape[0]
                     self.passive_refinement_nodes_from_2_index += 1
-                a = np.equal(self.passive_refinement_nodes_from_2, nodes[2]).all(1)
+                a = np.isclose(self.passive_refinement_nodes_from_2, nodes[2]).all(1)
             if (a.any()):
                 indice_2 = np.where(a == True)[0][0]
             else:
-                b = np.equal(self.nodes_numpy, nodes[2]).all(1)
+                b = np.isclose(self.nodes_numpy, nodes[2]).all(1)
                 if (b.any()):
                     indice_2 = np.where(b == True)[0][0]
                 else:
@@ -371,21 +372,21 @@ class MashNpy:
                     self.passive_refinement_nodes_from_2_index += 1
             return np.array([indice_0, indice_1, indice_2])
         else:
-            a = np.equal(self.new_nodes, nodes[0]).all(1)
+            a = np.isclose(self.new_nodes, nodes[0]).all(1)
             if (a.any()):
                 indice_0 = np.where(a == True)[0][0]
             else:
                 self.new_nodes[self.new_nodes_index, :] = nodes[0]
                 indice_0 = self.new_nodes_index
                 self.new_nodes_index += 1
-            a = np.equal(self.new_nodes, nodes[1]).all(1)
+            a = np.isclose(self.new_nodes, nodes[1]).all(1)
             if (a.any()):
                 indice_1 = np.where(a == True)[0][0]
             else:
                 self.new_nodes[self.new_nodes_index, :] = nodes[1]
                 indice_1 = self.new_nodes_index
                 self.new_nodes_index += 1
-            a = np.equal(self.new_nodes, nodes[2]).all(1)
+            a = np.isclose(self.new_nodes, nodes[2]).all(1)
             if (a.any()):
                 indice_2 = np.where(a == True)[0][0]
             else:

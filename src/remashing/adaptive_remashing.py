@@ -43,9 +43,9 @@ def show_mash(points, values, triangles, triangles_error):
     triangles_new = np.hstack([np.full(fill_value=3, shape=(triangles.shape[0], 1)), triangles])
 
     mesh = pv.PolyData(points, triangles_new)
-    mesh.point_data['feature_1'] = values[:, 0]
+    #mesh.point_data['feature_1'] = values[:, 0]
     #Error von einem feature
-    #mesh.cell_data['Error'] = triangles_error
+    mesh.cell_data['Error'] = triangles_error
     pl = pv.Plotter()
     point_labels = values[:, 0]
     pl.add_mesh(mesh, show_edges=True)
@@ -58,11 +58,11 @@ def main():
     path_path = '../data/graph_small'
     path_basegraph = '../data/basegraph_small'
     mash = MashNpy(graph=torch.load(path_path), basegraph=torch.load(path_basegraph))
-    mash.adaptive_refinement(max_error=.5)
+    mash.adaptive_refinement(max_error=8)
     mash.triangles_numpy = mash.triangles_numpy[mash.triangles_numpy[:,0].argsort()]
     points = mash.nodes_numpy[:, :3]
     values = mash.nodes_numpy[:, -2:]
-    plot_sphere(points=[points[:, 0], points[:, 1], points[:, 2]], values=values[:, 0])
+    #plot_sphere(points=[points[:, 0], points[:, 1], points[:, 2]], values=values[:, 0])
     show_mash(points, values, triangles=mash.triangles_numpy, triangles_error=mash.triangles_Error)
 
 
