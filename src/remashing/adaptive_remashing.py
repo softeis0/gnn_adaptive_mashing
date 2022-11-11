@@ -55,14 +55,14 @@ def show_mash(points, values, triangles, triangles_error):
 def main():
 
 
-    path_path = '../data/graph_small'
-    path_basegraph = '../data/basegraph_small'
+    path_path = '../data/graph.pt'
+    path_basegraph = '../data/basegraph.pt'
     mash = MashNpy(graph=torch.load(path_path), basegraph=torch.load(path_basegraph))
-    mash.adaptive_refinement(max_error=8)
+    mash.adaptive_refinement(max_error=3.6)
     mash.triangles_numpy = mash.triangles_numpy[mash.triangles_numpy[:,0].argsort()]
     points = mash.nodes_numpy[:, :3]
     values = mash.nodes_numpy[:, -2:]
-    #plot_sphere(points=[points[:, 0], points[:, 1], points[:, 2]], values=values[:, 0])
+    plot_sphere(points=[points[:, 0], points[:, 1], points[:, 2]], values=values[:, 0])
     show_mash(points, values, triangles=mash.triangles_numpy, triangles_error=mash.triangles_Error)
 
 
