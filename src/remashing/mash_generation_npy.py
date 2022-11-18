@@ -68,7 +68,7 @@ class MashNpy:
 
             self.destroy_triangles(self.triangles_high_Error)
 
-            nodes_set_created = set([tuple(np.around(t, 6)) for t in self.new_nodes])
+            nodes_set_created = set([tuple(t) for t in np.around(self.new_nodes, 5)])
 
             for triangle in self.triangles_low_Error:
                 self.sort_triangles_into_affected(triangle=triangle, nodes_set_created=nodes_set_created,insert_t1=False, insert_t2=True, insert_t3=False)
@@ -76,12 +76,15 @@ class MashNpy:
 
             while (self.passive_refinement_2.shape[0] > 0 or self.nodes_set_changed):
                 old_nodes_set_created_len = len(nodes_set_created)
+                #self.show_mash()
                 self.insert_refinement_t_2()
+
                 for triangle in self.triangles_low_Error:
                     self.sort_triangles_into_affected(triangle=triangle, nodes_set_created=nodes_set_created, insert_t1=False, insert_t2=True, insert_t3=False)
-                nodes_set_created = set([tuple(np.around(t, 6)) for t in self.new_nodes])
+                nodes_set_created = set([tuple(t) for t in np.around(self.new_nodes, 5)])
                 self.passive_refinement_2 = self.passive_refinement_2[1:]
                 self.nodes_set_changed = not (len(nodes_set_created) == old_nodes_set_created_len)
+
 
             for triangle in self.triangles_low_Error:
                 self.sort_triangles_into_affected(triangle=triangle, nodes_set_created=nodes_set_created,
@@ -102,6 +105,22 @@ class MashNpy:
             i += 1
         print(i)
         self.update_triangles_Error()
+
+    def show_mash(self):
+        points, values, triangles = self.nodes_numpy[:, :3], self.nodes_numpy[:, -2:], self.triangles_numpy
+        import pyvista as pv
+
+        # show_example()
+        triangles_new = np.hstack([np.full(fill_value=3, shape=(triangles.shape[0], 1)), triangles])
+
+        mesh = pv.PolyData(points, triangles_new)
+        mesh.point_data['feature_1'] = values[:, 0]
+        # Error von einem feature
+        pl = pv.Plotter()
+        point_labels = values[:, 0]
+        pl.add_mesh(mesh, show_edges=True)
+        # pl.add_point_labels(points, point_labels)
+        pl.show()
 
     def update_triangles_Error(self):
         self.triangles_Error_index = 0
@@ -190,6 +209,7 @@ class MashNpy:
                                                            dtype=int)
         self.take_care_of_passive_refinement_1_npy()
         self.triangles_numpy = np.vstack([self.triangles_numpy, self.passive_refinement_triangles_from_1])
+
         self.destroy_triangles(local_copy_refinement_t_1, destroy_in_low_Error=True)
 
     # create new triangles for passive refinement case 1
@@ -311,8 +331,23 @@ class MashNpy:
     # get the nodes on which the triangle is passively affected
     def get_duplicated_nodes(self, triangle, nodes_set_created):
         new_nodes_triangle = self.create_3_new_nodes(self.get_triangle_nodes(triangle=triangle))
-        nodes_set_triangle = set([tuple(np.around(t, 6)) for t in new_nodes_triangle])
+        nodes_set_triangle = set([tuple(np.around(t, 5)) for t in new_nodes_triangle])
+        """
+        ### alternative ohne Set
+        result = []
+        new_nodes_triangle = self.create_3_new_nodes(self.get_triangle_nodes(triangle=triangle))
+        a = np.isclose(self.new_nodes, new_nodes_triangle[0], atol=1e-05, rtol=0).all(1)
+        if a.any():
+            result.append(new_nodes_triangle[0])
+        b = np.isclose(self.new_nodes, new_nodes_triangle[1], atol=1e-05, rtol=0).all(1)
+        if b.any():
+            result.append(new_nodes_triangle[1])
+        c = np.isclose(self.new_nodes, new_nodes_triangle[2], atol=1e-05, rtol=0).all(1)
+        if c.any():
+            result.append(new_nodes_triangle[2])"""
         return nodes_set_triangle & nodes_set_created
+
+        #return set([tuple(t) for t in result])
 
     # refines one bad triangle
     def refine_one_bad_triangle(self, triangle):
@@ -347,7 +382,7 @@ class MashNpy:
         if ref_2:
             a = np.isclose(self.passive_refinement_nodes_from_2, nodes[0], atol=1e-05, rtol=0).all(1)
             if (a.any()):
-                indice_0 = np.where(a == True)[0][0]
+                indice_0 = np.where(a == True)[0][0] + self.nodes_numpy.shape[0]
             else:
                 b = np.isclose(self.nodes_numpy, nodes[0], atol=1e-05, rtol=0).all(1)
                 if (b.any()):
@@ -358,7 +393,7 @@ class MashNpy:
                     self.passive_refinement_nodes_from_2_index += 1
             a = np.isclose(self.passive_refinement_nodes_from_2, nodes[1], atol=1e-05, rtol=0).all(1)
             if (a.any()):
-                indice_1 = np.where(a == True)[0][0]
+                indice_1 = np.where(a == True)[0][0] + self.nodes_numpy.shape[0]
             else:
                 b = np.isclose(self.nodes_numpy, nodes[1], atol=1e-05, rtol=0).all(1)
                 if (b.any()):
@@ -367,9 +402,9 @@ class MashNpy:
                     self.passive_refinement_nodes_from_2[self.passive_refinement_nodes_from_2_index, :] = nodes[1]
                     indice_1 = self.passive_refinement_nodes_from_2_index + self.nodes_numpy.shape[0]
                     self.passive_refinement_nodes_from_2_index += 1
-                a = np.isclose(self.passive_refinement_nodes_from_2, nodes[2], atol=1e-05, rtol=0).all(1)
+            a = np.isclose(self.passive_refinement_nodes_from_2, nodes[2], atol=1e-05, rtol=0).all(1)
             if (a.any()):
-                indice_2 = np.where(a == True)[0][0]
+                indice_2 = np.where(a == True)[0][0] + self.nodes_numpy.shape[0]
             else:
                 b = np.isclose(self.nodes_numpy, nodes[2], atol=1e-05, rtol=0).all(1)
                 if (b.any()):
@@ -448,9 +483,9 @@ class MashNpy:
 
     # destroys a certain amount of triangles for self.triangles_numpy. if destory in low_Error=True, triangles get taken out of self.triangles_low_Error too.
     def destroy_triangles(self, triangles, destroy_in_low_Error=False):
-        triangles_set = set([tuple(np.around(t, 6)) for t in self.triangles_numpy.tolist()])
-        triagnles_set_old = set([tuple(np.around(t, 6)) for t in triangles.tolist()])
+        triangles_set = set([tuple(np.around(t, 5)) for t in self.triangles_numpy.tolist()])
+        triagnles_set_old = set([tuple(np.around(t, 5)) for t in triangles.tolist()])
         self.triangles_numpy = np.array(list(triangles_set - triagnles_set_old))
         if destroy_in_low_Error:
-            low_error_triangles_set = set([tuple(np.around(t, 6)) for t in self.triangles_low_Error])
+            low_error_triangles_set = set([tuple(np.around(t, 5)) for t in self.triangles_low_Error])
             self.triangles_low_Error = np.array(list(low_error_triangles_set - triagnles_set_old))
