@@ -58,7 +58,7 @@ def main():
     path_path = '../data/graph.pt'
     path_basegraph = '../data/basegraph.pt'
     mash = MashNpy(graph=torch.load(path_path), basegraph=torch.load(path_basegraph))
-    mash.adaptive_refinement(max_error=0.5)
+    mash.adaptive_refinement(max_error=1)
     mash.triangles_numpy = mash.triangles_numpy[mash.triangles_numpy[:,0].argsort()]
     points = mash.nodes_numpy[:, :3]
     values = mash.nodes_numpy[:, -2:]

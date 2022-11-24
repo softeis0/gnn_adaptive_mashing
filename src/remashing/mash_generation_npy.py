@@ -1,11 +1,6 @@
-from src.remashing.triangle_mash import Triangle
-import torch
 import numpy as np
-from torch_geometric.data import Data
-from tqdm import tqdm
-from tqdm import trange
-import profile
 from src.tests.visualize_mash import plot_sphere
+import pyvista as pv
 
 class MashNpy:
     def __init__(self, graph, basegraph):
@@ -46,6 +41,13 @@ class MashNpy:
         self.passive_refinement_triangles_from_3 = None
         self.passive_refinement_triangles_from_3_index = [0]
 
+        self.show_mash()
+
+        self.triangles_special_t1 = np.full(fill_value=-1,shape=(1, 9), dtype=int)  # indices
+        self.triangles_special_t1_new = None
+        self.triangles_special_t1_new_index = 0
+        self.triangles_special_t1_refine = np.full(fill_value=-1,shape=(1, 9), dtype=int)
+
     def adaptive_refinement(self, max_error):
         #points = self.nodes_numpy[:, :3]
         #values = self.nodes_numpy[:, -2:]
@@ -64,11 +66,23 @@ class MashNpy:
             self.nodes_numpy = np.vstack([self.nodes_numpy, self.new_nodes])
             self.new_nodes_index = 0
             self.triangles_numpy = np.vstack([self.triangles_numpy, self.new_triangles])
-            array_index = 0
 
             self.destroy_triangles(self.triangles_high_Error)
 
             nodes_set_created = set([tuple(t) for t in np.around(self.new_nodes, 5)])
+
+            special_triangle_need_refinement = True if np.array_equal(self.triangles_special_t1[0], np.array([-1,-1,-1,-1,-1,-1,-1,-1,-1])) else False
+            new_refinements = False
+
+            """while(special_triangle_need_refinement | new_refinements):
+                special_triangle_need_refinement = False
+                old_amount_ref_st1 = self.triangles_special_t1_refine.shape[0]
+                for special_triangle in self.triangles_special_t1:
+                    self.sort_special_triangle_into_affected(special_triangle=special_triangle, nodes_set_created=nodes_set_created)
+                self.solve_special_triangle_cases()
+                new_refinements = not (self.triangles_special_t1_refine.shape[0] == old_amount_ref_st1)
+
+            x = 0"""
 
             for triangle in self.triangles_low_Error:
                 self.sort_triangles_into_affected(triangle=triangle, nodes_set_created=nodes_set_created,insert_t1=False, insert_t2=True, insert_t3=False)
@@ -76,7 +90,6 @@ class MashNpy:
 
             while (self.passive_refinement_2.shape[0] > 0 or self.nodes_set_changed):
                 old_nodes_set_created_len = len(nodes_set_created)
-                #self.show_mash()
                 self.insert_refinement_t_2()
 
                 for triangle in self.triangles_low_Error:
@@ -95,7 +108,8 @@ class MashNpy:
 
 
             self.insert_refinement_t_1()
-
+            if (self.triangles_special_t1.shape[0] > 1 and np.array_equal(self.triangles_special_t1[0], np.array([-1,-1,-1,-1,-1,-1,-1,-1,-1]))):
+                self.triangles_special_t1 = self.triangles_special_t1[1:]
             # self.passive_refinement_3 = np.vstack([self.passive_refinement_3, self.triangles_numpy[:5]])
             self.insert_refinement_t_3()
 
@@ -106,15 +120,31 @@ class MashNpy:
         print(i)
         self.update_triangles_Error()
 
-    def show_mash(self):
-        points, values, triangles = self.nodes_numpy[:, :3], self.nodes_numpy[:, -2:], self.triangles_numpy
-        import pyvista as pv
 
+    def solve_special_triangle_cases(self):
+        pass
+
+    def sort_special_triangle_into_affected(self, special_triangle, nodes_set_created):
+        duplicated_nodes_1 = self.get_duplicated_nodes(special_triangle[-9:-6], nodes_set_created)
+        duplicated_nodes_2 = self.get_duplicated_nodes(special_triangle[-6:-3], nodes_set_created)
+        is_triangle_affected = len(duplicated_nodes_1) + len(duplicated_nodes_2)
+        if is_triangle_affected > 1:
+            self.triangles_special_t1_refine = np.vstack([self.triangles_special_t1_refine, special_triangle])
+        return
+
+    def show_mash(self, triangle_error=True):
+
+        points, values, triangles = self.nodes_numpy[:, :3], self.nodes_numpy[:, -2:], self.triangles_numpy
         # show_example()
         triangles_new = np.hstack([np.full(fill_value=3, shape=(triangles.shape[0], 1)), triangles])
 
         mesh = pv.PolyData(points, triangles_new)
-        mesh.point_data['feature_1'] = values[:, 0]
+        if triangle_error:
+            self.update_triangles_Error()
+            mesh.cell_data['Error'] = self.triangles_Error
+        else:
+            mesh.point_data['feature_1'] = values[:, 0]
+
         # Error von einem feature
         pl = pv.Plotter()
         point_labels = values[:, 0]
@@ -166,7 +196,7 @@ class MashNpy:
         # calculate error
         difference = np.abs(np.diff(nodes, axis=0))
         dif_sum = difference.sum()
-        if dif_sum < max_error:
+        if (dif_sum / self.amount_features) < max_error:
             self.triangles_low_Error[self.triangles_low_Error_index, :] = triangle
             self.triangles_low_Error_index += 1
         else:
@@ -201,14 +231,21 @@ class MashNpy:
         self.triangles_low_Error_index = 0
         self.triangles_high_Error_index = 0
 
+        self.triangles_special_t1_new = None
+        self.triangles_special_t1_new_index = 0
+
     # solve the passive refinement case 1
     def insert_refinement_t_1(self):
         local_copy_refinement_t_1 = self.passive_refinement_1
         self.passive_refinement_triangles_from_1 = np.full(fill_value=-1,
                                                            shape=(self.passive_refinement_1.shape[0] * 2, 3),
                                                            dtype=int)
+        self.triangles_special_t1_new = np.full(fill_value=-1,
+                                                           shape=(self.passive_refinement_1.shape[0] * 1, 9),
+                                                           dtype=int)
         self.take_care_of_passive_refinement_1_npy()
         self.triangles_numpy = np.vstack([self.triangles_numpy, self.passive_refinement_triangles_from_1])
+        self.triangles_special_t1 = np.vstack([self.triangles_special_t1, self.triangles_special_t1_new])
 
         self.destroy_triangles(local_copy_refinement_t_1, destroy_in_low_Error=True)
 
@@ -221,30 +258,41 @@ class MashNpy:
             old_nodes = self.get_triangle_nodes(triangle=triangle)
             possible_nodes = self.create_3_new_nodes(old_nodes=old_nodes)
 
+            self.triangles_special_t1_new[self.triangles_special_t1_new_index, -3:] = triangle
+
             # indice of the new node
             indice_new_node = np.where(np.isclose(self.nodes_numpy, np.array(list(new_node))[0], atol=1e-05, rtol=0).all(1) == True)[0][0]
 
             if np.allclose(np.array(list(new_node)), possible_nodes[0, :].reshape(-1, self.length_nodes), atol=1e-05, rtol=0):
                 self.passive_refinement_triangles_from_1[self.passive_refinement_triangles_from_1_index] = [
                     indice_new_node, triangle[0], triangle[2]]
+
+                self.triangles_special_t1_new[self.triangles_special_t1_new_index, -6:-3] = self.passive_refinement_triangles_from_1[self.passive_refinement_triangles_from_1_index]
                 self.passive_refinement_triangles_from_1_index += 1
                 self.passive_refinement_triangles_from_1[self.passive_refinement_triangles_from_1_index] = [
                     indice_new_node, triangle[1], triangle[2]]
+                self.triangles_special_t1_new[self.triangles_special_t1_new_index, -9:-6] = self.passive_refinement_triangles_from_1[self.passive_refinement_triangles_from_1_index]
                 self.passive_refinement_triangles_from_1_index += 1
+
             elif np.allclose(np.array(list(new_node)), possible_nodes[1, :].reshape(-1, self.length_nodes), atol=1e-05, rtol=0):
                 self.passive_refinement_triangles_from_1[self.passive_refinement_triangles_from_1_index] = [
                     indice_new_node, triangle[0], triangle[1]]
+                self.triangles_special_t1_new[self.triangles_special_t1_new_index, -6:-3] = self.passive_refinement_triangles_from_1[self.passive_refinement_triangles_from_1_index]
                 self.passive_refinement_triangles_from_1_index += 1
                 self.passive_refinement_triangles_from_1[self.passive_refinement_triangles_from_1_index] = [
                     indice_new_node, triangle[2], triangle[1]]
+                self.triangles_special_t1_new[self.triangles_special_t1_new_index, -9:-6] = self.passive_refinement_triangles_from_1[self.passive_refinement_triangles_from_1_index]
                 self.passive_refinement_triangles_from_1_index += 1
             elif np.allclose(np.array(list(new_node)), possible_nodes[2, :].reshape(-1, self.length_nodes), atol=1e-05, rtol=0):
                 self.passive_refinement_triangles_from_1[self.passive_refinement_triangles_from_1_index] = [
                     indice_new_node, triangle[2], triangle[0]]
+                self.triangles_special_t1_new[self.triangles_special_t1_new_index, -6:-3] = self.passive_refinement_triangles_from_1[self.passive_refinement_triangles_from_1_index]
                 self.passive_refinement_triangles_from_1_index += 1
                 self.passive_refinement_triangles_from_1[self.passive_refinement_triangles_from_1_index] = [
                     indice_new_node, triangle[1], triangle[0]]
+                self.triangles_special_t1_new[self.triangles_special_t1_new_index, -9:-6] = self.passive_refinement_triangles_from_1[self.passive_refinement_triangles_from_1_index]
                 self.passive_refinement_triangles_from_1_index += 1
+            self.triangles_special_t1_new_index += 1
 
     # solve the passive refinement case 2
     def insert_refinement_t_2(self):
