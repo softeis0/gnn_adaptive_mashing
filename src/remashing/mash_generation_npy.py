@@ -41,12 +41,11 @@ class MashNpy:
         self.passive_refinement_triangles_from_3 = None
         self.passive_refinement_triangles_from_3_index = [0]
 
-        self.show_mash()
+        #self.show_mash()
 
         self.triangles_special_t1 = np.full(fill_value=-1,shape=(1, 9), dtype=int)  # indices
         self.triangles_special_t1_new = None
         self.triangles_special_t1_new_index = 0
-        self.triangles_special_t1_refine = np.full(fill_value=-1,shape=(1, 9), dtype=int)
 
     def adaptive_refinement(self, max_error):
         #points = self.nodes_numpy[:, :3]
@@ -70,19 +69,40 @@ class MashNpy:
             self.destroy_triangles(self.triangles_high_Error)
 
             nodes_set_created = set([tuple(t) for t in np.around(self.new_nodes, 5)])
+            nodes_set_created_old = set([tuple(t) for t in np.around(self.nodes_numpy, 5)])
+            all_nodes_set = nodes_set_created_old | nodes_set_created
 
-            special_triangle_need_refinement = True if np.array_equal(self.triangles_special_t1[0], np.array([-1,-1,-1,-1,-1,-1,-1,-1,-1])) else False
+            first_loop = True
             new_refinements = False
 
-            """while(special_triangle_need_refinement | new_refinements):
-                special_triangle_need_refinement = False
-                old_amount_ref_st1 = self.triangles_special_t1_refine.shape[0]
+            while(new_refinements | first_loop ):
+                first_loop = False
+                if np.array_equal(self.triangles_special_t1[0], np.array([-1, -1, -1, -1, -1, -1, -1, -1, -1])):
+                    continue
+                self.triangles_special_t1_refine = np.full(fill_value=-1, shape=(self.triangles_special_t1.shape[0] * 4, 9),dtype=int)
+                self.triangles_special_t1_refine_index = 0
                 for special_triangle in self.triangles_special_t1:
                     self.sort_special_triangle_into_affected(special_triangle=special_triangle, nodes_set_created=nodes_set_created)
-                self.solve_special_triangle_cases()
-                new_refinements = not (self.triangles_special_t1_refine.shape[0] == old_amount_ref_st1)
 
-            x = 0"""
+                self.triangles_special_t1_refine = self.triangles_special_t1_refine[self.triangles_special_t1_refine != -1].reshape(-1, 9)
+
+                self.new_nodes_special_t1_nodes = np.full(fill_value=-1, shape=(self.triangles_special_t1_refine.shape[0]*2, self.length_nodes),dtype=float)
+                self.triangles_special_t1_nodes_index = 0
+                self.triangles_special_t1_new_triangles = np.full(fill_value=-1, shape=(
+                self.triangles_special_t1_refine.shape[0] * 8, 3), dtype=int)
+                self.triangles_special_t1_new_triangles_index = [0]
+
+                for t in self.triangles_special_t1_refine:
+                    self.solve_special_triangle_case(t, all_nodes_set)
+
+                self.new_nodes_special_t1_nodes = self.new_nodes_special_t1_nodes[self.new_nodes_special_t1_nodes != -1].reshape(-1, self.length_nodes)
+                self.triangles_special_t1_new_triangles = self.triangles_special_t1_new_triangles[self.triangles_special_t1_new_triangles != -1].reshape(-1, 3)
+                self.nodes_numpy = np.vstack([self.nodes_numpy, self.new_nodes_special_t1_nodes])
+                self.triangles_numpy = np.vstack([self.triangles_numpy, self.triangles_special_t1_new_triangles])
+                self.triangles_low_Error = np.vstack([self.triangles_low_Error, self.triangles_special_t1_new_triangles])
+                new_refinements = self.triangles_special_t1_refine.shape[0] > 0
+
+            x = 0
 
             for triangle in self.triangles_low_Error:
                 self.sort_triangles_into_affected(triangle=triangle, nodes_set_created=nodes_set_created,insert_t1=False, insert_t2=True, insert_t3=False)
@@ -121,15 +141,54 @@ class MashNpy:
         self.update_triangles_Error()
 
 
-    def solve_special_triangle_cases(self):
-        pass
+    def solve_special_triangle_case(self, special_triangle, all_nodes_set):
+        self.destroy_triangles(np.vstack([special_triangle[-9:-6], special_triangle[-6:-3]]), destroy_in_low_Error=True)
+        triangle = special_triangle[-3:]
+
+        new_node, new_nodes = self.get_new_node(triangle=triangle, created_nodes=all_nodes_set)
+
+        indices_new_nodes = self.add_nodes_global_st(nodes=new_nodes)
+        indices = np.array((triangle, indices_new_nodes)).reshape(6, )
+
+        # create new triangles using indices
+        self.make_4_new_triangles(nodes=indices, triangle_array=self.triangles_special_t1_new_triangles,
+                                  array_index=self.triangles_special_t1_new_triangles_index)
+
+    def add_nodes_global_st(self,nodes):
+        a = np.isclose(self.nodes_numpy, nodes[0], atol=1e-05, rtol=0).all(1)
+        if (a.any()):
+            indice_0 = np.where(a == True)[0][0]
+        else:
+            self.new_nodes_special_t1_nodes[self.triangles_special_t1_nodes_index, :] = nodes[0]
+            indice_0 = self.triangles_special_t1_nodes_index + self.nodes_numpy.shape[0]
+            self.triangles_special_t1_nodes_index += 1
+        a = np.isclose(self.nodes_numpy, nodes[1], atol=1e-05, rtol=0).all(1)
+        if (a.any()):
+            indice_1 = np.where(a == True)[0][0]
+        else:
+            self.new_nodes_special_t1_nodes[self.triangles_special_t1_nodes_index, :] = nodes[1]
+            indice_1 = self.triangles_special_t1_nodes_index + self.nodes_numpy.shape[0]
+            self.triangles_special_t1_nodes_index += 1
+        a = np.isclose(self.nodes_numpy, nodes[2], atol=1e-05, rtol=0).all(1)
+        if (a.any()):
+            indice_2 = np.where(a == True)[0][0]
+        else:
+            self.new_nodes_special_t1_nodes[self.triangles_special_t1_nodes_index, :] = nodes[2]
+            indice_2 = self.triangles_special_t1_nodes_index + self.nodes_numpy.shape[0]
+            self.triangles_special_t1_nodes_index += 1
+        return np.array([indice_0, indice_1, indice_2])
 
     def sort_special_triangle_into_affected(self, special_triangle, nodes_set_created):
         duplicated_nodes_1 = self.get_duplicated_nodes(special_triangle[-9:-6], nodes_set_created)
         duplicated_nodes_2 = self.get_duplicated_nodes(special_triangle[-6:-3], nodes_set_created)
         is_triangle_affected = len(duplicated_nodes_1) + len(duplicated_nodes_2)
         if is_triangle_affected > 1:
-            self.triangles_special_t1_refine = np.vstack([self.triangles_special_t1_refine, special_triangle])
+            self.triangles_special_t1_refine[self.triangles_special_t1_refine_index ] = special_triangle
+            self.triangles_special_t1_refine_index += 1
+            # destroy from special_triangle
+            triangles_set = set([tuple(np.around(t, 5)) for t in self.triangles_special_t1.tolist()])
+            triagnles_set_old = set([tuple(special_triangle.tolist())])
+            self.triangles_special_t1 = np.array(list(triangles_set - triagnles_set_old))
         return
 
     def show_mash(self, triangle_error=True):
@@ -333,7 +392,7 @@ class MashNpy:
         old_nodes = self.get_triangle_nodes(triangle=triangle)
         new_nodes = self.create_3_new_nodes(old_nodes=old_nodes)
 
-        set_new_nodes = set([tuple(x) for x in list(new_nodes)])
+        set_new_nodes = set([tuple(np.around(x,5)) for x in list(new_nodes)])
         set_created_nodes = set(created_nodes)
 
         return set_new_nodes - (set_new_nodes & set_created_nodes), new_nodes
