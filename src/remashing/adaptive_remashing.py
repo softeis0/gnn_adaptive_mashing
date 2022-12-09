@@ -1,9 +1,6 @@
 # algorithm for adaptive remashing
 import torch
 from torch_geometric.data import Data
-from torch_geometric import utils as geom_utils
-from src.remashing.triangle_mash import Triangle
-from src.remashing.mash import Mash
 from src.remashing.mash_generation_npy import MashNpy
 import cProfile
 import numpy as np
@@ -52,21 +49,25 @@ def show_mash(points, values, triangles, triangles_error):
     #pl.add_point_labels(points, point_labels)
     pl.show()
 
-def main():
+def get_refined_mash(graph, basegraph, max_error, show_graph=True):
+    mash = MashNpy(graph=graph, basegraph=basegraph)
 
+    mash.adaptive_refinement(max_error=max_error)
 
-    path_path = '../data/graph.pt'
-    path_basegraph = '../data/basegraph.pt'
-    mash = MashNpy(graph=torch.load(path_path), basegraph=torch.load(path_basegraph))
-    mash.adaptive_refinement(max_error=0.25)
-    mash.triangles_numpy = mash.triangles_numpy[mash.triangles_numpy[:,0].argsort()]
+    mash.triangles_numpy = mash.triangles_numpy[mash.triangles_numpy[:, 0].argsort()]
     points = mash.nodes_numpy[:, :3]
     values = mash.nodes_numpy[:, -2:]
-    #plot_sphere(points=[points[:, 0], points[:, 1], points[:, 2]], values=values[:, 0])
-    show_mash(points, values, triangles=mash.triangles_numpy, triangles_error=mash.triangles_Error)
 
+    # plot_sphere(points=[points[:, 0], points[:, 1], points[:, 2]], values=values[:, 0])
+    if show_graph:
+        show_mash(points, values, triangles=mash.triangles_numpy, triangles_error=mash.triangles_Error)
 
-    #pygraph = construct_pygraph(points=points, values=values, triangles=mash.triangles_numpy)
+    return construct_pygraph(points=points, values=values, triangles=mash.triangles_numpy)
+
+def main():
+    path_path = '../data/graph.pt'
+    path_basegraph = '../data/basegraph.pt'
+    mash = get_refined_mash(graph=torch.load(path_path), basegraph=torch.load(path_basegraph), max_error=1, show_graph=True)
 
 if __name__=="__main__":
     cProfile.run('main()', "output.dat")
