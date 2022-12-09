@@ -46,6 +46,7 @@ class MashNpy:
         self.triangles_special_t1 = np.full(fill_value=-1,shape=(1, 9), dtype=int)  # indices
         self.triangles_special_t1_new = None
         self.triangles_special_t1_new_index = 0
+        self.triangles_special_t1_to_destroy = None
 
     def adaptive_refinement(self, max_error):
         #points = self.nodes_numpy[:, :3]
@@ -91,6 +92,8 @@ class MashNpy:
                 self.triangles_special_t1_new_triangles = np.full(fill_value=-1, shape=(
                 self.triangles_special_t1_refine.shape[0] * 8, 3), dtype=int)
                 self.triangles_special_t1_new_triangles_index = [0]
+                self.triangles_special_t1_to_destroy = np.full(fill_value=-1, shape=(self.triangles_special_t1_refine.shape[0] * 2, 3))
+                self.triangles_special_t1_to_destroy_index = 0
 
                 for t in self.triangles_special_t1_refine:
                     self.solve_special_triangle_case(t, all_nodes_set)
@@ -98,11 +101,16 @@ class MashNpy:
                 self.new_nodes_special_t1_nodes = self.new_nodes_special_t1_nodes[self.new_nodes_special_t1_nodes != -1].reshape(-1, self.length_nodes)
                 self.triangles_special_t1_new_triangles = self.triangles_special_t1_new_triangles[self.triangles_special_t1_new_triangles != -1].reshape(-1, 3)
                 self.nodes_numpy = np.vstack([self.nodes_numpy, self.new_nodes_special_t1_nodes])
+                self.new_nodes = np.vstack([self.new_nodes, self.new_nodes_special_t1_nodes])
                 self.triangles_numpy = np.vstack([self.triangles_numpy, self.triangles_special_t1_new_triangles])
                 self.triangles_low_Error = np.vstack([self.triangles_low_Error, self.triangles_special_t1_new_triangles])
                 new_refinements = self.triangles_special_t1_refine.shape[0] > 0
 
-            x = 0
+                self.triangles_special_t1_to_destroy = self.triangles_special_t1_to_destroy[
+                    self.triangles_special_t1_to_destroy != -1].reshape(-1, 3)
+                self.destroy_triangles(self.triangles_special_t1_to_destroy, destroy_in_low_Error = True)
+
+            nodes_set_created = set([tuple(t) for t in np.around(self.new_nodes, 5)])
 
             for triangle in self.triangles_low_Error:
                 self.sort_triangles_into_affected(triangle=triangle, nodes_set_created=nodes_set_created,insert_t1=False, insert_t2=True, insert_t3=False)
@@ -137,12 +145,17 @@ class MashNpy:
 
             self.init_low_high_error(max_error)
             i += 1
-        print(i)
+            print(i)
         self.update_triangles_Error()
 
 
     def solve_special_triangle_case(self, special_triangle, all_nodes_set):
-        self.destroy_triangles(np.vstack([special_triangle[-9:-6], special_triangle[-6:-3]]), destroy_in_low_Error=True)
+        self.triangles_special_t1_to_destroy[self.triangles_special_t1_to_destroy_index] = special_triangle[-9:-6]
+        self.triangles_special_t1_to_destroy_index += 1
+        self.triangles_special_t1_to_destroy[self.triangles_special_t1_to_destroy_index] = special_triangle[-6:-3]
+        self.triangles_special_t1_to_destroy_index += 1
+
+
         triangle = special_triangle[-3:]
 
         new_node, new_nodes = self.get_new_node(triangle=triangle, created_nodes=all_nodes_set)
@@ -589,10 +602,23 @@ class MashNpy:
         array_index[0] += 1
 
     # destroys a certain amount of triangles for self.triangles_numpy. if destory in low_Error=True, triangles get taken out of self.triangles_low_Error too.
-    def destroy_triangles(self, triangles, destroy_in_low_Error=False):
-        triangles_set = set([tuple(np.around(t, 5)) for t in self.triangles_numpy.tolist()])
-        triagnles_set_old = set([tuple(np.around(t, 5)) for t in triangles.tolist()])
+    def destroy_triangles(self, triangles, destroy_in_low_Error=False, traingles_set=None, low_error_triangles_set=None):
+        triangles_set, triagnles_set_old = self.test1(triangles)
+
+
         self.triangles_numpy = np.array(list(triangles_set - triagnles_set_old))
         if destroy_in_low_Error:
-            low_error_triangles_set = set([tuple(np.around(t, 5)) for t in self.triangles_low_Error])
-            self.triangles_low_Error = np.array(list(low_error_triangles_set - triagnles_set_old))
+            self.test2(triangles, triagnles_set_old)
+
+    # 7,5 sek
+    def test1(self, triangles):
+        triangles_set = set([tuple(t) for t in self.triangles_numpy.tolist()])
+        triagnles_set_old = set([tuple(t) for t in triangles.tolist()])
+        return triangles_set, triagnles_set_old
+        #for t in triangles:
+           # a = np.isclose(self.triangles_numpy, t, atol=1e-05, rtol=0).all(1)
+
+    # 2,8 sek
+    def test2(self, triangles, triagnles_set_old):
+        low_error_triangles_set = set([tuple(t) for t in self.triangles_low_Error])
+        self.triangles_low_Error = np.array(list(low_error_triangles_set - triagnles_set_old))
