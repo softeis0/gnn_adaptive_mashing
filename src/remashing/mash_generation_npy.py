@@ -49,13 +49,12 @@ class MashNpy:
         self.triangles_special_t1_to_destroy = None
 
     def adaptive_refinement(self, max_error):
-        #points = self.nodes_numpy[:, :3]
-        #values = self.nodes_numpy[:, -2:]
-        #plot_sphere(points=[points[:, 0], points[:,1], points[:,2]], values=values[:, 0])
+
+
         self.init_low_high_error(max_error)
         i = 0
         while (self.triangles_high_Error.size != 0):
-
+            self.show_mash()
             self.new_nodes = np.full(fill_value=-1,shape=(self.triangles_high_Error.shape[0]*3, self.length_nodes), dtype=float)
             self.new_triangles = np.full(fill_value=-1, shape=(self.triangles_high_Error.shape[0] * 4, 3), dtype=int)
 
@@ -451,26 +450,8 @@ class MashNpy:
     # get the nodes on which the triangle is passively affected
     def get_duplicated_nodes(self, triangle, nodes_set_created):
         new_nodes_triangle = self.create_3_new_nodes(self.get_triangle_nodes(triangle=triangle))
-
-        nodes_set_triangle = self.test1(new_nodes_triangle)
-
-        ### alternative ohne Set
-        """result = []
-        a = np.isclose(self.new_nodes, new_nodes_triangle[0], atol=5e-05, rtol=0).all(1)
-        if a.any():
-            result.append(tuple(new_nodes_triangle[0]))
-        b = np.isclose(self.new_nodes, new_nodes_triangle[1], atol=5e-05, rtol=0).all(1)
-        if b.any():
-            result.append(tuple(new_nodes_triangle[1]))
-        c = np.isclose(self.new_nodes, new_nodes_triangle[2], atol=5e-05, rtol=0).all(1)
-        if c.any():
-            result.append(tuple(new_nodes_triangle[2]))
-        return set(result)"""
+        nodes_set_triangle = set([tuple(t) for t in new_nodes_triangle.round(5)])
         return nodes_set_triangle & nodes_set_created
-
-    def test1(self, new_nodes_triangle):
-        return set([tuple(t) for t in new_nodes_triangle.round(5)])
-        #return set([tuple(t) for t in result])
 
     # refines one bad triangle
     def refine_one_bad_triangle(self, triangle):
@@ -618,10 +599,3 @@ class MashNpy:
         if destroy_in_low_Error:
             low_error_triangles_set = set([tuple(t) for t in self.triangles_low_Error])
             self.triangles_low_Error = np.array(list(low_error_triangles_set - triagnles_set_old))
-
-
-
-
-
-    def test2(self, triangles, triagnles_set_old):
-        pass

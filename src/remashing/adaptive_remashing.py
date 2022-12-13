@@ -67,7 +67,8 @@ def get_refined_mash(graph, basegraph, max_error, show_graph=True):
 def main():
     path_path = '../data/graph.pt'
     path_basegraph = '../data/basegraph.pt'
-    mash = get_refined_mash(graph=torch.load(path_path), basegraph=torch.load(path_basegraph), max_error=0.08, show_graph=True)
+    mash = get_refined_mash(graph=torch.load(path_path), basegraph=torch.load(path_basegraph), max_error=0.3, show_graph=True)
+    x = 0
 
 if __name__=="__main__":
     cProfile.run('main()', "output.dat")
