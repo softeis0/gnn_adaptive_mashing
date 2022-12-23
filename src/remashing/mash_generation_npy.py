@@ -54,7 +54,6 @@ class MashNpy:
         self.init_low_high_error(max_error)
         i = 0
         while (self.triangles_high_Error.size != 0):
-            self.show_mash()
             self.new_nodes = np.full(fill_value=-1,shape=(self.triangles_high_Error.shape[0]*3, self.length_nodes), dtype=float)
             self.new_triangles = np.full(fill_value=-1, shape=(self.triangles_high_Error.shape[0] * 4, 3), dtype=int)
 
